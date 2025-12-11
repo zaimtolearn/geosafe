@@ -1,43 +1,63 @@
 // src/components/Map.jsx
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-
-// --- Fix for missing default icon in Leaflet + React ---
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
+// Fix icons
 let DefaultIcon = L.icon({
     iconUrl: icon,
     shadowUrl: iconShadow,
     iconSize: [25, 41],
     iconAnchor: [12, 41]
 });
-
 L.Marker.prototype.options.icon = DefaultIcon;
-// -------------------------------------------------------
 
-function Map() {
-  // Coordinates for USM, Penang (Gelugor)
+// --- Handles Map Clicks ---
+function LocationPicker({ onLocationSelect }) {
+  useMapEvents({
+    click(e) {
+      // plain object so Firestore doesn't throw error
+      const cleanLocation = { 
+        lat: e.latlng.lat, 
+        lng: e.latlng.lng 
+      };
+      onLocationSelect(cleanLocation);
+    },
+  });
+  return null;
+}
+// -----------------------------------------
+
+function Map({ onMapClick, reports = [] }) {
   const usmPosition = [5.3556, 100.3025]; 
 
   return (
     <MapContainer 
       center={usmPosition} 
       zoom={15} 
-      style={{ height: "100vh", width: "100%" }} // 100vh means "100% of Viewport Height"
+      style={{ height: "100vh", width: "100%" }}
     >
-      {/* This layer provides the actual map images (tiles) */}
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        attribution='&copy; OpenStreetMap contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      
-      {/* A test marker to prove it works */}
+
+      {/* Enable Click Detection */}
+      {onMapClick && <LocationPicker onLocationSelect={onMapClick} />}
+
+      {/* Show existing reports (Phase 4 preview) */}
+      {reports.map((report) => (
+        <Marker key={report.id} position={[report.location.lat, report.location.lng]}>
+          <Popup>
+            <b>{report.title}</b><br/>{report.category}
+          </Popup>
+        </Marker>
+      ))}
+
       <Marker position={usmPosition}>
-        <Popup>
-          GeoSafe HQ <br /> USM School of Computer Sciences.
-        </Popup>
+        <Popup>GeoSafe HQ</Popup>
       </Marker>
     </MapContainer>
   );
