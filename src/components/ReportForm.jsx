@@ -1,22 +1,24 @@
 // src/components/ReportForm.jsx
 import { useState } from 'react';
-import './ReportForm.css'; 
+import './ReportForm.css';
 
-function ReportForm({ onSubmit, onCancel, preSelectedLocation }) {
+function ReportForm({ onSubmit, onCancel, preSelectedLocation, isGuest }) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Hazard');
+  const [file, setFile] = useState(null); // Store the selected file
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({ title, category });
+    // Pass the file along with the data
+    onSubmit({ title, category, file });
   };
 
   return (
     <div className="form-overlay">
       <div className="form-card">
         <h2>Report Incident</h2>
+        {isGuest && <small style={{color: 'red'}}>Reporting as Guest</small>}
         
-        {/* Display the location being reported */}
         <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '10px' }}>
           Location: {preSelectedLocation ? 
             `${preSelectedLocation.lat.toFixed(4)}, ${preSelectedLocation.lng.toFixed(4)}` 
@@ -50,9 +52,22 @@ function ReportForm({ onSubmit, onCancel, preSelectedLocation }) {
             </select>
           </div>
 
+          {/* NEW: Image Upload Input */}
+          <div className="input-group">
+            <label>Photo (Optional):</label>
+            <input 
+              type="file" 
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files[0])}
+              className="form-input"
+            />
+          </div>
+
           <div className="button-group">
             <button type="button" onClick={onCancel} className="btn btn-cancel">Cancel</button>
-            <button type="submit" className="btn btn-submit">Submit Report</button>
+            <button type="submit" className="btn btn-submit">
+              {file ? 'Upload & Submit' : 'Submit Report'}
+            </button>
           </div>
         </form>
       </div>

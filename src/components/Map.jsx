@@ -51,7 +51,23 @@ function Map({ onMapClick, reports = [] }) {
       {reports.map((report) => (
         <Marker key={report.id} position={[report.location.lat, report.location.lng]}>
           <Popup>
-            <b>{report.title}</b><br/>{report.category}
+            <b>{report.title}</b><br/>
+            <span style={{color: '#666'}}>{report.category}</span>
+            
+            {/* Show Image if it exists */}
+            {report.imageUrl && (
+              <div style={{marginTop: '5px'}}>
+                <img 
+                  src={report.imageUrl} 
+                  alt="Evidence" 
+                  style={{width: '100%', maxHeight: '100px', borderRadius: '4px', objectFit: 'cover'}} 
+                />
+              </div>
+            )}
+            
+            <div style={{fontSize: '0.8rem', marginTop: '5px'}}>
+              Reported by: {report.userName}
+            </div>
           </Popup>
         </Marker>
       ))}
