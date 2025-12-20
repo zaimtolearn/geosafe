@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react';
 import Map from './components/Map';
 import ReportForm from './components/ReportForm';
 import { db, auth, googleProvider, storage } from './firebase'; 
-import { collection, addDoc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import VoteControls from './components/VoteControls';
+import { collection, addDoc, onSnapshot, orderBy, query, doc, getDoc, setDoc, increment, updateDoc } from 'firebase/firestore';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -53,33 +54,28 @@ function App() {
 
   // --- THE SUBMIT LOGIC ---
   const handleAddReport = async (reportData) => {
-    setIsUploading(true); // Start loading
+    setIsUploading(true); 
 
     try {
       let imageUrl = null;
-
-      // 1. If there is a file, upload it first
       if (reportData.file) {
-        // Create a unique name: reports/12345_myImage.png
         const imageRef = ref(storage, `reports/${Date.now()}_${reportData.file.name}`);
-        
-        // Upload
         const snapshot = await uploadBytes(imageRef, reportData.file);
-        
-        // Get the public URL
         imageUrl = await getDownloadURL(snapshot.ref);
       }
 
-      // 2. Save the report to Firestore
+      // ADDED: confirmVotes and denyVotes initialized to 0
       await addDoc(collection(db, 'reports'), {
         title: reportData.title,
         category: reportData.category,
         location: tempLocation,
-        imageUrl: imageUrl, // Save the URL (or null)
+        imageUrl: imageUrl, 
         timestamp: new Date(),
-        userId: user ? user.uid : 'guest', // Handle Guest
+        userId: user ? user.uid : 'guest',
         userName: user ? user.displayName : 'Anonymous',
-        userPhoto: user ? user.photoURL : null
+        userPhoto: user ? user.photoURL : null,
+        confirmVotes: 0, // <--- NEW
+        denyVotes: 0     // <--- NEW
       });
 
       alert("Report submitted successfully!");
@@ -89,7 +85,49 @@ function App() {
       console.error("Error adding report: ", error);
       alert("Error saving report.");
     } finally {
-      setIsUploading(false); // Stop loading
+      setIsUploading(false);
+    }
+  };
+
+  const handleVote = async (reportId, voteType) => {
+    if (!user) {
+      alert("You must be logged in to vote!");
+      return;
+    }
+
+    // 1. Reference to the specific vote record (unique per user per report)
+    // Path: votes/{reportId_userId}
+    const voteId = `${reportId}_${user.uid}`;
+    const voteRef = doc(db, 'votes', voteId);
+    const reportRef = doc(db, 'reports', reportId);
+
+    try {
+      // 2. Check if this user already voted
+      const voteSnap = await getDoc(voteRef);
+
+      if (voteSnap.exists()) {
+        alert("You have already voted on this report!");
+        return;
+      }
+
+      // 3. If not, record the vote
+      await setDoc(voteRef, {
+        userId: user.uid,
+        reportId: reportId,
+        voteType: voteType,
+        timestamp: new Date()
+      });
+
+      // 4. Update the report counters atomically
+      await updateDoc(reportRef, {
+        // Dynamic key: either 'confirmVotes' or 'denyVotes'
+        [voteType === 'confirm' ? 'confirmVotes' : 'denyVotes']: increment(1)
+      });
+
+      console.log("Vote recorded!");
+    } catch (error) {
+      console.error("Error voting:", error);
+      alert("Failed to vote.");
     }
   };
 
@@ -115,7 +153,12 @@ function App() {
          )}
        </div>
 
-       <Map onMapClick={handleMapClick} reports={reports} />
+       <Map 
+          onMapClick={handleMapClick} 
+          reports={reports} 
+          onVote={handleVote}  // <--- Pass the function down
+          userId={user ? user.uid : null} // <--- Pass the user ID down
+        />
 
        {/* Floating Button: Visible to EVERYONE (Guest or User) */}
        {!selectMode && !showForm && (

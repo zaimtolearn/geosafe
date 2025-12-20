@@ -1,0 +1,49 @@
+/* src/components/VoteControls.css */
+.vote-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+    flex-wrap: wrap;
+  }
+  
+  .vote-section {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .vote-btn {
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    background: white;
+    font-size: 0.8rem;
+  }
+  
+  .vote-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .vote-btn:hover:not(:disabled) {
+    background-color: #f0f0f0;
+  }
+  
+  .confirm { color: green; border-color: green; }
+  .deny { color: red; border-color: red; }
+  
+  .vote-count { font-weight: bold; font-size: 0.9rem; }
+  .confirm-text { color: green; }
+  .deny-text { color: red; }
+  
+  .guest-warning {
+    width: 100%;
+    text-align: center;
+    color: #888;
+    font-size: 0.7rem;
+    margin-top: 5px;
+  }

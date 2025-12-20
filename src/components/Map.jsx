@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import VoteControls from './VoteControls';
 
 // Fix icons
 let DefaultIcon = L.icon({
@@ -30,7 +31,7 @@ function LocationPicker({ onLocationSelect }) {
 }
 // -----------------------------------------
 
-function Map({ onMapClick, reports = [] }) {
+function Map({ onMapClick, reports = [] , onVote, userId }) {
   const usmPosition = [5.3556, 100.3025]; 
 
   return (
@@ -68,6 +69,11 @@ function Map({ onMapClick, reports = [] }) {
             <div style={{fontSize: '0.8rem', marginTop: '5px'}}>
               Reported by: {report.userName}
             </div>
+            <VoteControls 
+              report={report} 
+              onVote={onVote} 
+              userId={userId} 
+            />
           </Popup>
         </Marker>
       ))}
