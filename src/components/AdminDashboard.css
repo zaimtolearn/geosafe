@@ -1,0 +1,70 @@
+/* src/components/AdminDashboard.css */
+.admin-container {
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #f9f9f9;
+    min-height: 100vh;
+}
+  
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+  
+.report-card {
+    background: white;
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+  
+.report-info h3 { margin: 0 0 5px 0; font-size: 1.1rem; }
+.report-info p { margin: 0; color: #666; font-size: 0.9rem; }
+  
+.status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-left: 10px;
+}
+.status-Unconfirmed { background-color: #eee; color: #555; }
+.status-Confirmed { background-color: #d4edda; color: #155724; }
+  
+.admin-actions { display: flex; gap: 10px; }
+  
+.btn-verify {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+  
+.btn-delete {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+  
+.btn-close {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}

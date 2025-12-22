@@ -2,16 +2,19 @@
 import { useState, useEffect } from 'react';
 import Map from './components/Map';
 import ReportForm from './components/ReportForm';
+import AdminDashboard from './components/AdminDashboard';
 import { db, auth, googleProvider, storage } from './firebase'; 
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import VoteControls from './components/VoteControls';
-import { collection, addDoc, onSnapshot, orderBy, query, doc, getDoc, setDoc, increment, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, orderBy, query, doc, getDoc, setDoc, increment, updateDoc, deleteDoc } from 'firebase/firestore';
 
 function App() {
+  const ADMIN_EMAIL = "zaimrosli2003@gmail.com";
   const [user, setUser] = useState(null);
   const [reports, setReports] = useState([]);
   
+  const [showAdmin, setShowAdmin] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [tempLocation, setTempLocation] = useState(null);
@@ -131,6 +134,21 @@ function App() {
     }
   };
 
+  // --- ADMIN ACTIONS ---
+  const handleVerifyReport = async (reportId) => {
+    const reportRef = doc(db, 'reports', reportId);
+    await updateDoc(reportRef, {
+      status: 'Confirmed'
+    });
+    alert("Report verified!");
+  };
+
+  const handleDeleteReport = async (reportId) => {
+    const reportRef = doc(db, 'reports', reportId);
+    await deleteDoc(reportRef);
+    // Optional: We should also delete the votes, but for MVP we can skip cleaning up sub-collections
+  };
+
   return (
     <div>
        {/* Header */}
@@ -138,6 +156,16 @@ function App() {
          <h2 style={{margin: 0, fontSize: '1.2rem'}}>GeoSafe</h2>
          {user ? (
            <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+             {/* Show Admin Button ONLY if email matches admin */}
+             {user.email === ADMIN_EMAIL && (
+                <button 
+                  onClick={() => setShowAdmin(true)}
+                  style={{backgroundColor: 'black', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'}}
+                >
+                  Admin Dashboard
+                </button>
+              )}
+
              {/* Profile Pic Fix: Use a standard placeholder if photoURL fails */}
              <img 
                src={user.photoURL || "https://cdn-icons-png.flaticon.com/512/847/847969.png"} 
@@ -184,6 +212,18 @@ function App() {
        {isUploading && (
          <div style={styles.loadingOverlay}>Uploading...</div>
        )}
+
+       {/* Admin Dashboard Overlay */}
+        {showAdmin && (
+          <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, background: 'white', overflowY: 'auto'}}>
+            <AdminDashboard 
+              reports={reports}
+              onVerify={handleVerifyReport}
+              onDelete={handleDeleteReport}
+              onClose={() => setShowAdmin(false)}
+            />
+          </div>
+        )}
     </div>
   );
 }
