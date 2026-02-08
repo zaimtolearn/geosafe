@@ -1,106 +1,258 @@
 // src/App.jsx
-import Sidebar from './components/Sidebar';
-import { useState, useEffect } from 'react';
-import Map from './components/Map';
-import ReportForm from './components/ReportForm';
-import AdminDashboard from './components/AdminDashboard';
-import FilterControl from './components/FilterControl';
-import { db, auth, googleProvider, storage } from './firebase'; 
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, onSnapshot, orderBy, query, doc, getDoc, setDoc, increment, updateDoc, deleteDoc } from 'firebase/firestore';
+import { useState, useEffect } from "react";
+import Map from "./components/Map";
+import ReportForm from "./components/ReportForm";
+import AdminDashboard from "./components/AdminDashboard";
+import FilterControl from "./components/FilterControl";
+import Sidebar from "./components/Sidebar";
+import AlertSettings from "./components/AlertSettings";
+import { getToken } from 'firebase/messaging';
+import { messaging } from './firebase';
+import * as geofire from 'geofire-common';
+import { db, auth, googleProvider, storage } from "./firebase";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  doc,
+  getDoc,
+  setDoc,
+  increment,
+  updateDoc,
+  deleteDoc,
+} from "firebase/firestore";
+
+// --- Helper to calculate distance (Haversine Formula) ---
+function getDistanceInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) *
+    Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI / 180);
+}
+// -------------------------------------------------------------
 
 function App() {
   const [user, setUser] = useState(null);
-  const [userRole, setUserRole] = useState('user');
+  const [userRole, setUserRole] = useState("user");
   const [reports, setReports] = useState([]);
+
+  // Alert & Settings States
+  const [showAlertSettings, setShowAlertSettings] = useState(false);
+  const [userAlertConfig, setUserAlertConfig] = useState(null);
+  const [pickingHome, setPickingHome] = useState(false);
+
+  // UI States
   const [showSidebar, setShowSidebar] = useState(false);
   const [flyToLocation, setFlyToLocation] = useState(null);
-  
-  // --- Filter State ---
-  const [activeFilters, setActiveFilters] = useState({
-    categories: { Hazard: true, Accident: true, Flood: true, Fire: true },
-    statuses: { Confirmed: true, Unconfirmed: true }
-  });
-
   const [showAdmin, setShowAdmin] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [tempLocation, setTempLocation] = useState(null);
-  const [isUploading, setIsUploading] = useState(false); // Loading state
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Listen for Reports (Ordered by newest first)
+  // Filter State
+  const [activeFilters, setActiveFilters] = useState({
+    categories: { Hazard: true, Accident: true, Flood: true, Fire: true },
+    statuses: { Confirmed: true, Unconfirmed: true },
+  });
+
+  // --- NEW FUNCTION: Request Permission & Save Token ---
+  const requestNotificationPermission = async (uid, location) => {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        // 1. Get the Token (You need your VAPID Key from Firebase Console)
+        const token = await getToken(messaging, {
+          vapidKey: "BCKAMmMvKraEcI1BVnRYxiHRrLrzbdQvJFyneMV6Ah5oR-kTfz8bFsnulPtWlZJpaIXuzBaqL4zwiWTltBoil_k"
+        });
+
+        // 2. Generate Geohash for the User's Home
+        const hash = geofire.geohashForLocation([location.lat, location.lng]);
+
+        // 3. Save to Firestore
+        await updateDoc(doc(db, 'users', uid), {
+          fcmToken: token,
+          alertConfig: {
+            enabled: true,
+            location: location,
+            geohash: hash, // <--- We need this for the Cloud Function!
+            radius: 5 // Default or from settings
+          }
+        });
+        console.log("Token & Geohash saved!", token);
+      }
+    } catch (error) {
+      console.error("Notification Error:", error);
+    }
+  };
+
+  // --- 1. Listen for Reports & Trigger Alerts ---
   useEffect(() => {
-    const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+    const q = query(collection(db, "reports"), orderBy("timestamp", "desc"));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const fetchedReports = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setReports(fetchedReports);
+
+      // Check for Alerts on new/modified reports
+      snapshot.docChanges().forEach((change) => {
+        const report = change.doc.data();
+
+        console.log("Change detected:", change.type, report.title, report.status);
+        if (change.type === "modified" || change.type === "added") {
+          // Trigger ONLY if Confirmed, Settings exist, and Location is set
+          console.log("User Config:", userAlertConfig);
+          if (
+            report.status === "Confirmed" &&
+            userAlertConfig?.enabled &&
+            userAlertConfig?.location
+          ) {
+            const dist = getDistanceInKm(
+              userAlertConfig.location.lat,
+              userAlertConfig.location.lng,
+              report.location.lat,
+              report.location.lng
+            );
+            console.log(`Distance Calculated: ${dist.toFixed(2)} km. Alert Radius: ${userAlertConfig.radius} km`);
+
+            if (dist <= userAlertConfig.radius) {
+              console.log("FIRE THE ALERT!");
+              if (Notification.permission === "granted") {
+                new Notification(`⚠️ DANGER NEARBY!`, {
+                  body: `${report.title} has been VERIFIED within ${dist.toFixed(1)}km of your location.`,
+                  icon: report.imageUrl || "https://cdn-icons-png.flaticon.com/512/564/564619.png",
+                });
+              } else {
+                console.log("Permission was not granted!")
+              }
+            } else {
+              console.log("No Alert Needed - Incident is too far away.")
+            }
+          } else {
+            console.log("No Alert Needed - Incident is not confirmed or settings are not enabled.")
+          }
+        }
+      });
     });
     return () => unsubscribe();
-  }, []);
+  }, [userAlertConfig]);
 
+  // --- 2. Auth Listener (FIXED) ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // 1. Check if user exists in database
-        const userRef = doc(db, 'users', currentUser.uid);
+        // Check database for user role
+        const userRef = doc(db, "users", currentUser.uid);
         const userSnap = await getDoc(userRef);
+
         if (userSnap.exists()) {
-          // 2. If exists, get their role
-          setUserRole(userSnap.data().role || 'user');
+          const data = userSnap.data();
+          // ERROR FIXED HERE: data is an object, not a function
+          setUserRole(data.role || "user");
+
+          if (data.alertConfig) {
+            setUserAlertConfig(data.alertConfig);
+          }
         } else {
-          // 3. If first time login, create them as 'user'
+          // Create new user if not exists
           await setDoc(userRef, {
             email: currentUser.email,
             displayName: currentUser.displayName,
             photoURL: currentUser.photoURL,
-            role: 'user', // Default role
-            createdAt: new Date()
+            role: "user",
+            createdAt: new Date(),
           });
-          setUserRole('user');
+          setUserRole("user");
         }
       } else {
         setUserRole(null);
+        setUserAlertConfig(null);
       }
     });
     return () => unsubscribe();
   }, []);
 
-  const filteredReports = reports.filter((report) => {
-    // 1. Check Category
-    const categoryMatch = activeFilters.categories[report.category] === true;
-    
-    // 2. Check Status (Handle missing status as 'Unconfirmed')
-    const currentStatus = report.status || 'Unconfirmed';
-    const statusMatch = activeFilters.statuses[currentStatus] === true;
+  // --- Handlers ---
+  const handleSaveAlertSettings = async (newSettings) => {
+    const locationToSave = newSettings.location || userAlertConfig?.location;
+    const updatedConfig = {
+      enabled: newSettings.enabled,
+      radius: newSettings.radius,
+      location: locationToSave,
+    };
+    setUserAlertConfig(updatedConfig);
 
-    return categoryMatch && statusMatch;
-  });
-
-  const handleFilterApply = (newFilters) => {
-    setActiveFilters(newFilters);
-  };
-
-  const handleLogin = async () => { try { await signInWithPopup(auth, googleProvider); } catch (error) { console.error(error); } };
-  const handleLogout = async () => { await signOut(auth); };
-
-  const startReporting = () => {
-    setSelectMode(true);
-    alert("Click on the map to set the incident location.");
-  };
-
-  const handleMapClick = (location) => {
-    if (selectMode) {
-      setTempLocation(location);
-      setSelectMode(false); 
-      setShowForm(true);    
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { alertConfig: updatedConfig });
+      alert("Alert settings saved!");
+    }
+    if (newSettings.enabled && newSettings.location && user) {
+      await requestNotificationPermission(user.uid, newSettings.location);
     }
   };
 
-  // --- THE SUBMIT LOGIC ---
-  const handleAddReport = async (reportData) => {
-    setIsUploading(true); 
+  const startPickingHome = () => {
+    setShowAlertSettings(false);
+    setPickingHome(true);
+    alert("Click your home location on the map.");
+  };
 
+  const handleMapClick = (location) => {
+    if (pickingHome) {
+      if (window.confirm("Set this as your Home Location for alerts?")) {
+        handleSaveAlertSettings({
+          ...userAlertConfig,
+          location: location,
+          enabled: true,
+        });
+        setPickingHome(false);
+        setShowAlertSettings(true);
+      }
+      return;
+    }
+
+    if (selectMode) {
+      setTempLocation(location);
+      setSelectMode(false);
+      setShowForm(true);
+    }
+  };
+
+  // Filter Logic
+  const filteredReports = reports.filter((report) => {
+    const categoryMatch = activeFilters.categories[report.category] === true;
+    const currentStatus = report.status || "Unconfirmed";
+    const statusMatch = activeFilters.statuses[currentStatus] === true;
+    return categoryMatch && statusMatch;
+  });
+
+  const handleFilterApply = (newFilters) => setActiveFilters(newFilters);
+  const handleLogin = async () => { try { await signInWithPopup(auth, googleProvider); } catch (error) { console.error(error); } };
+  const handleLogout = async () => { await signOut(auth); };
+  const startReporting = () => { setSelectMode(true); alert("Click on the map to set the incident location."); };
+
+  const handleAddReport = async (reportData) => {
+    setIsUploading(true);
     try {
       let imageUrl = null;
       if (reportData.file) {
@@ -108,22 +260,19 @@ function App() {
         const snapshot = await uploadBytes(imageRef, reportData.file);
         imageUrl = await getDownloadURL(snapshot.ref);
       }
-
-      // confirmVotes and denyVotes initialized to 0
-      await addDoc(collection(db, 'reports'), {
+      await addDoc(collection(db, "reports"), {
         title: reportData.title,
         category: reportData.category,
         location: tempLocation,
-        imageUrl: imageUrl, 
+        imageUrl: imageUrl,
         timestamp: new Date(),
-        userId: user ? user.uid : 'guest',
-        userName: user ? user.displayName : 'Anonymous',
+        userId: user ? user.uid : "guest",
+        userName: user ? user.displayName : "Anonymous",
         userPhoto: user ? user.photoURL : null,
         confirmVotes: 0,
         denyVotes: 0,
-        status: 'Unconfirmed'
+        status: "Unconfirmed",
       });
-
       alert("Report submitted successfully!");
       setShowForm(false);
       setTempLocation(null);
@@ -137,168 +286,125 @@ function App() {
 
   const handleVote = async (reportId, voteType) => {
     if (!user) { alert("You must be logged in to vote!"); return; }
-    // 1. Reference to the specific vote record (unique per user per report)
     const voteId = `${reportId}_${user.uid}`;
-    const voteRef = doc(db, 'votes', voteId);
-    const reportRef = doc(db, 'reports', reportId);
-
+    const voteRef = doc(db, "votes", voteId);
+    const reportRef = doc(db, "reports", reportId);
     try {
-      // 2. Check if this user already voted
       const voteSnap = await getDoc(voteRef);
       if (voteSnap.exists()) { alert("You have already voted on this report!"); return; }
-
-      // 3. If not, record the vote
-      await setDoc(voteRef, {
-        userId: user.uid,
-        reportId: reportId,
-        voteType: voteType,
-        timestamp: new Date()
-      });
-
-      // 4. Update the report counters atomically
-      await updateDoc(reportRef, {
-        [voteType === 'confirm' ? 'confirmVotes' : 'denyVotes']: increment(1)
-      });
-
-      console.log("Vote recorded!");
-    } catch (error) {
-      console.error("Error voting:", error);
-      alert("Failed to vote.");
-    }
+      await setDoc(voteRef, { userId: user.uid, reportId: reportId, voteType: voteType, timestamp: new Date() });
+      await updateDoc(reportRef, { [voteType === "confirm" ? "confirmVotes" : "denyVotes"]: increment(1) });
+    } catch (error) { console.error("Error voting:", error); alert("Failed to vote."); }
   };
 
-  // --- ADMIN ACTIONS ---
-  const handleVerifyReport = async (reportId) => {
-    await updateDoc(doc(db, 'reports', reportId), { status: 'Confirmed' });
-    alert("Report verified!");
-  };
+  const handleVerifyReport = async (reportId) => { await updateDoc(doc(db, "reports", reportId), { status: "Confirmed" }); alert("Report verified!"); };
+  const handleDeleteReport = async (reportId) => { await deleteDoc(doc(db, "reports", reportId)); };
 
-  const handleDeleteReport = async (reportId) => {
-    const reportRef = doc(db, 'reports', reportId);
-    await deleteDoc(reportRef);
-    // Optional: We should also delete the votes, but for MVP we can skip cleaning up sub-collections
-  };
-
-  // Handler for Fly To click
-  const handleFlyTo = (location) => {
-    setFlyToLocation([location.lat, location.lng]);
-    setShowSidebar(false); // Close sidebar on mobile/desktop to see map
-  };
-  // Filter reports for the logged-in user
-  const myReports = user ? reports.filter(r => r.userId === user.uid) : [];
+  const handleFlyTo = (location) => { setFlyToLocation([location.lat, location.lng]); setShowSidebar(false); };
+  const myReports = user ? reports.filter((r) => r.userId === user.uid) : [];
 
   return (
     <div>
-       {/* Header */}
-       <div style={styles.header}>
-         <h2 style={{margin: 0, fontSize: '1.2rem'}}>GeoSafe</h2>
-         {user ? (
-           <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-            {/* --- INSERT THIS BUTTON HERE --- */}
-            <button 
-               onClick={() => setShowSidebar(true)}
-               style={{background: 'none', border: '1px solid #ddd', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9rem'}}
-             >
-               My Reports
-             </button>
-            {/* --------------------------------- */}
-             {/* Show Admin Button ONLY if email matches admin */}
-             {userRole === 'admin' && (
-                <button 
-                  onClick={() => setShowAdmin(true)}
-                  style={{backgroundColor: 'black', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'}}
-                >
-                  Admin Dashboard
-                </button>
-              )}
+      {/* Header */}
+      <div style={styles.header}>
+        <h2 style={{ margin: 0, fontSize: "1.2rem" }}>GeoSafe</h2>
+        {user ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button onClick={() => setShowAlertSettings(true)} style={styles.iconBtn} title="Alert Settings">🔔</button>
+            <button onClick={() => setShowSidebar(true)} style={styles.outlineBtn}>My Reports</button>
 
-             {/* Profile Pic Fix: Use a standard placeholder if photoURL fails */}
-             <img 
-               src={user.photoURL || "https://cdn-icons-png.flaticon.com/512/847/847969.png"} 
-               alt="User" 
-               style={styles.avatar}
-               onError={(e) => {e.target.src = "https://cdn-icons-png.flaticon.com/512/847/847969.png"}}
-             />
-             <span style={{fontSize: '0.9rem', fontWeight: 'bold'}}>{user.displayName}</span>
-             <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-           </div>
-         ) : (
-           <button onClick={handleLogin} style={styles.loginBtn}>Sign in</button>
-         )}
-       </div>
+            {/* ADMIN BUTTON - Only shows if userRole is correctly set to 'admin' */}
+            {userRole === "admin" && (
+              <button onClick={() => setShowAdmin(true)} style={styles.adminBtn}>Admin Dashboard</button>
+            )}
 
-       {/* --- Filter Component Only show when NOT selecting a location  --- */}
-       {!selectMode && (
-         <FilterControl onFilterApply={handleFilterApply} />
-       )}
-
-      {/* Add the Sidebar Component */}
-      <Sidebar 
-         isOpen={showSidebar} 
-         onClose={() => setShowSidebar(false)}
-         user={user}
-         userReports={myReports}
-         onFlyTo={handleFlyTo}
-       />
-
-       {/* Pass flyToLocation to Map */}
-       <Map 
-          onMapClick={handleMapClick} 
-          reports={filteredReports} 
-          onVote={handleVote} 
-          userId={user ? user.uid : null}
-          flyToLocation={flyToLocation} // <--- PASS IT DOWN
-        />
-
-       {/* Floating Button: Visible to EVERYONE (Guest or User) */}
-       {!selectMode && !showForm && (
-         <button onClick={startReporting} style={styles.fab}>
-           + Report Incident
-         </button>
-       )}
-
-       {selectMode && (
-         <div style={styles.banner}>Tap map to select location...</div>
-       )}
-
-       {showForm && (
-         <ReportForm 
-           preSelectedLocation={tempLocation}
-           isGuest={!user}
-           onSubmit={handleAddReport} 
-           onCancel={() => { setShowForm(false); setSelectMode(false); }} 
-         />
-       )}
-
-       {/* Loading Overlay */}
-       {isUploading && (
-         <div style={styles.loadingOverlay}>Uploading...</div>
-       )}
-
-       {/* Admin Dashboard Overlay */}
-        {showAdmin && (
-          <div style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, background: 'white', overflowY: 'auto'}}>
-            <AdminDashboard 
-              reports={reports}
-              onVerify={handleVerifyReport}
-              onDelete={handleDeleteReport}
-              onClose={() => setShowAdmin(false)}
+            <img
+              src={user.photoURL || "https://cdn-icons-png.flaticon.com/512/847/847969.png"}
+              alt="User"
+              style={styles.avatar}
+              onError={(e) => { e.target.src = "https://cdn-icons-png.flaticon.com/512/847/847969.png" }}
             />
+            <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
           </div>
+        ) : (
+          <button onClick={handleLogin} style={styles.loginBtn}>Sign in</button>
         )}
+      </div>
+
+      {/* Components */}
+      {!selectMode && <FilterControl onFilterApply={handleFilterApply} />}
+
+      <AlertSettings
+        isOpen={showAlertSettings}
+        onClose={() => setShowAlertSettings(false)}
+        currentSettings={userAlertConfig}
+        onSave={handleSaveAlertSettings}
+        onPickLocation={startPickingHome}
+      />
+
+      <Sidebar
+        isOpen={showSidebar}
+        onClose={() => setShowSidebar(false)}
+        user={user}
+        userReports={myReports}
+        onFlyTo={handleFlyTo}
+      />
+
+      <Map
+        onMapClick={handleMapClick}
+        reports={filteredReports}
+        onVote={handleVote}
+        userId={user ? user.uid : null}
+        flyToLocation={flyToLocation}
+      />
+
+      {/* Floating Action Button */}
+      {!selectMode && !showForm && (
+        <button onClick={startReporting} style={styles.fab}>+ Report Incident</button>
+      )}
+
+      {/* Banners & Overlays */}
+      {pickingHome && <div style={{ ...styles.banner, backgroundColor: "#17a2b8", color: "white" }}>Tap exact location of your home...</div>}
+      {selectMode && <div style={styles.banner}>Tap map to select location...</div>}
+
+      {showForm && (
+        <ReportForm
+          preSelectedLocation={tempLocation}
+          isGuest={!user}
+          onSubmit={handleAddReport}
+          onCancel={() => { setShowForm(false); setSelectMode(false); }}
+        />
+      )}
+
+      {isUploading && <div style={styles.loadingOverlay}>Uploading...</div>}
+
+      {/* Admin Dashboard - Needs showAdmin to be true */}
+      {showAdmin && (
+        <div style={styles.adminOverlay}>
+          <AdminDashboard
+            reports={reports}
+            onVerify={handleVerifyReport}
+            onDelete={handleDeleteReport}
+            onClose={() => setShowAdmin(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
+
 const styles = {
-  header: { position: 'absolute', top: 0, left: 0, right: 0, height: '60px', backgroundColor: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px', zIndex: 1000, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
-  avatar: { width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover' },
-  loginBtn: { padding: '8px 15px', backgroundColor: '#4285F4', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  logoutBtn: { padding: '5px 10px', backgroundColor: '#eee', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' },
-  adminBtn: { backgroundColor: 'black', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' },
-  fab: { position: 'absolute', bottom: '30px', right: '30px', zIndex: 999, padding: '15px 20px', fontSize: '16px', backgroundColor: '#e63946', color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' },
-  banner: { position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 999, backgroundColor: 'white', padding: '10px 20px', borderRadius: '30px', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', fontWeight: 'bold' },
-  loadingOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, fontSize: '1.5rem', fontWeight: 'bold' },
-  adminOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, background: 'white', overflowY: 'auto' }
+  header: { position: "absolute", top: 0, left: 0, right: 0, height: "60px", backgroundColor: "white", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 20px", zIndex: 1000, boxShadow: "0 2px 5px rgba(0,0,0,0.1)" },
+  avatar: { width: "30px", height: "30px", borderRadius: "50%", objectFit: "cover" },
+  loginBtn: { padding: "8px 15px", backgroundColor: "#4285F4", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
+  logoutBtn: { padding: "5px 10px", backgroundColor: "#eee", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem" },
+  adminBtn: { backgroundColor: "black", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer" },
+  outlineBtn: { background: "none", border: "1px solid #ddd", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "0.9rem" },
+  iconBtn: { background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer" },
+  fab: { position: "absolute", bottom: "30px", right: "30px", zIndex: 999, padding: "15px 20px", fontSize: "16px", backgroundColor: "#e63946", color: "white", border: "none", borderRadius: "50px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" },
+  banner: { position: "absolute", top: "70px", left: "50%", transform: "translateX(-50%)", zIndex: 999, backgroundColor: "white", padding: "10px 20px", borderRadius: "30px", boxShadow: "0 2px 10px rgba(0,0,0,0.2)", fontWeight: "bold" },
+  loadingOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, fontSize: "1.5rem", fontWeight: "bold" },
+  adminOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, background: "white", overflowY: "auto" },
 };
 
 export default App;
