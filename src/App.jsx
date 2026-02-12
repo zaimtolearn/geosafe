@@ -65,33 +65,34 @@ function App() {
   const [tempLocation, setTempLocation] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Filter State
+  // --- UPDATED FILTER STATE ---
   const [activeFilters, setActiveFilters] = useState({
-    categories: { Hazard: true, Accident: true, Flood: true, Fire: true },
+    categories: { Hazard: true, Accident: true, Flood: true, Fire: true, Infrastructure: true, Traffic: true },
     statuses: { Confirmed: true, Unconfirmed: true },
+    timeRange: "all" // 'all', '24h', '7d'
   });
 
-  // --- NEW FUNCTION: Request Permission & Save Token ---
+  // --- 1. Request Permission & Save Token ---
   const requestNotificationPermission = async (uid, location) => {
     try {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
-        // 1. Get the Token (You need your VAPID Key from Firebase Console)
+        // Replace with your actual VAPID key
         const token = await getToken(messaging, {
           vapidKey: "BCKAMmMvKraEcI1BVnRYxiHRrLrzbdQvJFyneMV6Ah5oR-kTfz8bFsnulPtWlZJpaIXuzBaqL4zwiWTltBoil_k"
         });
 
-        // 2. Generate Geohash for the User's Home
+        // Generate Geohash
         const hash = geofire.geohashForLocation([location.lat, location.lng]);
 
-        // 3. Save to Firestore
+        // Save to Firestore
         await updateDoc(doc(db, 'users', uid), {
           fcmToken: token,
           alertConfig: {
             enabled: true,
             location: location,
-            geohash: hash, // <--- We need this for the Cloud Function!
-            radius: 5 // Default or from settings
+            geohash: hash,
+            radius: 5
           }
         });
         console.log("Token & Geohash saved!", token);
@@ -101,7 +102,7 @@ function App() {
     }
   };
 
-  // --- 1. Listen for Reports & Trigger Alerts ---
+  // --- 2. Listen for Reports & Trigger Alerts ---
   useEffect(() => {
     const q = query(collection(db, "reports"), orderBy("timestamp", "desc"));
 
@@ -112,14 +113,10 @@ function App() {
       }));
       setReports(fetchedReports);
 
-      // Check for Alerts on new/modified reports
+      // Check for Alerts
       snapshot.docChanges().forEach((change) => {
         const report = change.doc.data();
-
-        console.log("Change detected:", change.type, report.title, report.status);
         if (change.type === "modified" || change.type === "added") {
-          // Trigger ONLY if Confirmed, Settings exist, and Location is set
-          console.log("User Config:", userAlertConfig);
           if (
             report.status === "Confirmed" &&
             userAlertConfig?.enabled &&
@@ -131,23 +128,15 @@ function App() {
               report.location.lat,
               report.location.lng
             );
-            console.log(`Distance Calculated: ${dist.toFixed(2)} km. Alert Radius: ${userAlertConfig.radius} km`);
 
             if (dist <= userAlertConfig.radius) {
-              console.log("FIRE THE ALERT!");
               if (Notification.permission === "granted") {
                 new Notification(`⚠️ DANGER NEARBY!`, {
-                  body: `${report.title} has been VERIFIED within ${dist.toFixed(1)}km of your location.`,
-                  icon: report.imageUrl || "https://cdn-icons-png.flaticon.com/512/564/564619.png",
+                  body: `${report.title} verified within ${dist.toFixed(1)}km.`,
+                  icon: report.imageUrl || "/icon-192.png",
                 });
-              } else {
-                console.log("Permission was not granted!")
               }
-            } else {
-              console.log("No Alert Needed - Incident is too far away.")
             }
-          } else {
-            console.log("No Alert Needed - Incident is not confirmed or settings are not enabled.")
           }
         }
       });
@@ -155,25 +144,19 @@ function App() {
     return () => unsubscribe();
   }, [userAlertConfig]);
 
-  // --- 2. Auth Listener (FIXED) ---
+  // --- 3. Auth Listener ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // Check database for user role
         const userRef = doc(db, "users", currentUser.uid);
         const userSnap = await getDoc(userRef);
 
         if (userSnap.exists()) {
           const data = userSnap.data();
-          // ERROR FIXED HERE: data is an object, not a function
           setUserRole(data.role || "user");
-
-          if (data.alertConfig) {
-            setUserAlertConfig(data.alertConfig);
-          }
+          if (data.alertConfig) setUserAlertConfig(data.alertConfig);
         } else {
-          // Create new user if not exists
           await setDoc(userRef, {
             email: currentUser.email,
             displayName: currentUser.displayName,
@@ -205,9 +188,9 @@ function App() {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { alertConfig: updatedConfig });
       alert("Alert settings saved!");
-    }
-    if (newSettings.enabled && newSettings.location && user) {
-      await requestNotificationPermission(user.uid, newSettings.location);
+      if (newSettings.enabled && locationToSave) {
+        await requestNotificationPermission(user.uid, locationToSave);
+      }
     }
   };
 
@@ -238,12 +221,30 @@ function App() {
     }
   };
 
-  // Filter Logic
+  // --- UPDATED FILTER LOGIC ---
   const filteredReports = reports.filter((report) => {
+    // 1. Category Check
     const categoryMatch = activeFilters.categories[report.category] === true;
+
+    // 2. Status Check
     const currentStatus = report.status || "Unconfirmed";
     const statusMatch = activeFilters.statuses[currentStatus] === true;
-    return categoryMatch && statusMatch;
+
+    // 3. Time Check (NEW)
+    let timeMatch = true;
+    if (activeFilters.timeRange !== 'all' && report.timestamp) {
+      const reportDate = report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
+      const now = new Date();
+      const hoursDiff = (now - reportDate) / (1000 * 60 * 60); // Difference in hours
+
+      if (activeFilters.timeRange === '24h') {
+        timeMatch = hoursDiff <= 24;
+      } else if (activeFilters.timeRange === '7d') {
+        timeMatch = hoursDiff <= (24 * 7);
+      }
+    }
+
+    return categoryMatch && statusMatch && timeMatch;
   });
 
   const handleFilterApply = (newFilters) => setActiveFilters(newFilters);
@@ -299,30 +300,33 @@ function App() {
 
   const handleVerifyReport = async (reportId) => { await updateDoc(doc(db, "reports", reportId), { status: "Confirmed" }); alert("Report verified!"); };
   const handleDeleteReport = async (reportId) => { await deleteDoc(doc(db, "reports", reportId)); };
-
   const handleFlyTo = (location) => { setFlyToLocation([location.lat, location.lng]); setShowSidebar(false); };
+
   const myReports = user ? reports.filter((r) => r.userId === user.uid) : [];
 
   return (
     <div>
       {/* Header */}
       <div style={styles.header}>
-        <h2 style={{ margin: 0, fontSize: "1.2rem" }}>GeoSafe</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img src="/icon-192.png" alt="Logo" style={{ width: '30px', height: '30px' }} />
+          <h2 style={{ margin: 0, fontSize: "1.2rem" }}>GeoSafe</h2>
+        </div>
+
         {user ? (
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <button onClick={() => setShowAlertSettings(true)} style={styles.iconBtn} title="Alert Settings">🔔</button>
             <button onClick={() => setShowSidebar(true)} style={styles.outlineBtn}>My Reports</button>
 
-            {/* ADMIN BUTTON - Only shows if userRole is correctly set to 'admin' */}
             {userRole === "admin" && (
-              <button onClick={() => setShowAdmin(true)} style={styles.adminBtn}>Admin Dashboard</button>
+              <button onClick={() => setShowAdmin(true)} style={styles.adminBtn}>Admin</button>
             )}
 
             <img
-              src={user.photoURL || "https://cdn-icons-png.flaticon.com/512/847/847969.png"}
+              src={user.photoURL || "/icon-192.png"}
               alt="User"
               style={styles.avatar}
-              onError={(e) => { e.target.src = "https://cdn-icons-png.flaticon.com/512/847/847969.png" }}
+              onError={(e) => { e.target.src = "/icon-192.png" }}
             />
             <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
           </div>
@@ -352,7 +356,7 @@ function App() {
 
       <Map
         onMapClick={handleMapClick}
-        reports={filteredReports}
+        reports={filteredReports} // <--- PASSING FILTERED LIST HERE
         onVote={handleVote}
         userId={user ? user.uid : null}
         flyToLocation={flyToLocation}
@@ -378,9 +382,14 @@ function App() {
 
       {isUploading && <div style={styles.loadingOverlay}>Uploading...</div>}
 
-      {/* Admin Dashboard - Needs showAdmin to be true */}
       {showAdmin && (
         <div style={styles.adminOverlay}>
+          <button
+            onClick={() => setShowAdmin(false)}
+            style={{ position: 'absolute', top: '20px', right: '20px', padding: '10px', zIndex: 2001, cursor: 'pointer' }}
+          >
+            ✖ Close
+          </button>
           <AdminDashboard
             reports={reports}
             onVerify={handleVerifyReport}
