@@ -75,6 +75,24 @@ exports.sendGeoAlert = onDocumentWritten("reports/{reportId}", async (event) => 
           url: `https://${process.env.GCLOUD_PROJECT}.web.app/` 
         },
         tokens: tokensToSend,
+        
+        // --- NEW: Time-To-Live (TTL) Settings ---
+        android: {
+          ttl: 600 * 1000, // 10 Minutes (in milliseconds)
+          priority: 'high'
+        },
+        webpush: {
+          headers: {
+            TTL: "600" // 10 Minutes (in seconds)
+          }
+        },
+        apns: {
+            payload: {
+                aps: {
+                    expiration: Math.floor(Date.now() / 1000) + 600 // UNIX timestamp 10 mins from now
+                }
+            }
+        }
       };
 
       const response = await admin.messaging().sendMulticast(message);
