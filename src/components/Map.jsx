@@ -1,5 +1,5 @@
 // src/components/Map.jsx
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -7,7 +7,9 @@ import {
   Popup,
   useMap,
   useMapEvents,
+  ZoomControl,
 } from "react-leaflet";
+import HeatmapLayer from './HeatmapLayer';
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import VoteControls from "./VoteControls";
@@ -61,89 +63,124 @@ function LocationPicker({ onLocationSelect }) {
 function Map({ onMapClick, reports = [], onVote, userId, flyToLocation }) {
   const usmPosition = [5.3556, 100.3025];
 
+  const [showHeatmap, setShowHeatmap] = useState(false);
+
   return (
-    <MapContainer
-      center={usmPosition}
-      zoom={15}
-      style={{ height: "100vh", width: "100%" }}
-    >
-      <TileLayer
-        attribution="&copy; OpenStreetMap contributors"
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+    <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
+      <button
+        onClick={() => setShowHeatmap(!showHeatmap)}
+        style={{
+          position: 'absolute',
+          top: '140px', // Placed below your new Filter button
+          left: '20px',
+          zIndex: 1000,
+          backgroundColor: showHeatmap ? '#dc3545' : 'white',
+          color: showHeatmap ? 'white' : 'black',
+          border: 'none',
+          padding: '12px 20px',
+          borderRadius: '50px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '14px'
+        }}
+      >
+        <span>{showHeatmap ? '🔥 Hide Heatmap' : '🗺️ Show Heatmap'}</span>
+      </button>
 
-      {/* Controller to handle movement */}
-      <MapController center={flyToLocation} />
+      <MapContainer
+        center={usmPosition}
+        zoom={15}
+        zoomControl={false}
+        style={{ height: "100%", width: "100%" }}
+      >
+        <ZoomControl position="bottomleft" />
+        <TileLayer
+          attribution="&copy; OpenStreetMap contributors"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
 
-      {/* Click Listener Helper */}
-      {onMapClick && <LocationPicker onLocationSelect={onMapClick} />}
+        {/* Controller to handle movement */}
+        <MapController center={flyToLocation} />
 
-      {reports.map((report) => (
-        <Marker
-          key={report.id}
-          position={[report.location.lat, report.location.lng]}
-          // DYNAMIC ICON SELECTION
-          icon={report.status === "Confirmed" ? greenIcon : blueIcon}
-        >
-          <Popup>
-            <div style={{ minWidth: "200px" }}>
-              {/* STATUS BADGE */}
-              <div
-                style={{
-                  marginBottom: "5px",
-                  padding: "4px 8px",
-                  borderRadius: "4px",
-                  display: "inline-block",
-                  fontSize: "0.75rem",
-                  fontWeight: "bold",
-                  backgroundColor:
-                    report.status === "Confirmed" ? "#d4edda" : "#f8d7da",
-                  color: report.status === "Confirmed" ? "#155724" : "#721c24",
-                }}
+        {/* Click Listener Helper */}
+        {onMapClick && <LocationPicker onLocationSelect={onMapClick} />}
+
+        {showHeatmap ? (
+          <HeatmapLayer points={reports} />
+        ) : (
+          <>
+            {reports.map((report) => (
+              <Marker
+                key={report.id}
+                position={[report.location.lat, report.location.lng]}
+                icon={report.status === "Confirmed" ? greenIcon : blueIcon}
               >
-                {report.status === "Confirmed"
-                  ? "✅ VERIFIED"
-                  : "⚠️ UNCONFIRMED"}
-              </div>
+                <Popup>
+                  <div style={{ minWidth: "200px" }}>
+                    {/* STATUS BADGE */}
+                    <div
+                      style={{
+                        marginBottom: "5px",
+                        padding: "4px 8px",
+                        borderRadius: "4px",
+                        display: "inline-block",
+                        fontSize: "0.75rem",
+                        fontWeight: "bold",
+                        backgroundColor:
+                          report.status === "Confirmed" ? "#d4edda" : "#f8d7da",
+                        color: report.status === "Confirmed" ? "#155724" : "#721c24",
+                      }}
+                    >
+                      {report.status === "Confirmed"
+                        ? "✅ VERIFIED"
+                        : "⚠️ UNCONFIRMED"}
+                    </div>
 
-              <h3 style={{ margin: "5px 0", fontSize: "1rem" }}>
-                {report.title}
-              </h3>
-              <span style={{ color: "#666", fontSize: "0.85rem" }}>
-                {report.category}
-              </span>
+                    <h3 style={{ margin: "5px 0", fontSize: "1rem" }}>
+                      {report.title}
+                    </h3>
+                    <span style={{ color: "#666", fontSize: "0.85rem" }}>
+                      {report.category}
+                    </span>
 
-              {report.imageUrl && (
-                <div style={{ marginTop: "8px" }}>
-                  <img
-                    src={report.imageUrl}
-                    alt="Evidence"
-                    style={{
-                      width: "100%",
-                      maxHeight: "120px",
-                      borderRadius: "4px",
-                      objectFit: "cover",
-                    }}
-                  />
-                </div>
-              )}
+                    {report.imageUrl && (
+                      <div style={{ marginTop: "8px" }}>
+                        <img
+                          src={report.imageUrl}
+                          alt="Evidence"
+                          style={{
+                            width: "100%",
+                            maxHeight: "120px",
+                            borderRadius: "4px",
+                            objectFit: "cover",
+                          }}
+                        />
+                      </div>
+                    )}
 
-              <div
-                style={{ fontSize: "0.75rem", marginTop: "5px", color: "#888" }}
-              >
-                Reported by: {report.userName}
-              </div>
+                    <div
+                      style={{ fontSize: "0.75rem", marginTop: "5px", color: "#888" }}
+                    >
+                      Reported by: {report.userName}
+                    </div>
 
-              <VoteControls report={report} onVote={onVote} userId={userId} />
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+                    <VoteControls report={report} onVote={onVote} userId={userId} />
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
 
-      <Marker position={usmPosition} icon={blueIcon}>
-        <Popup>GeoSafe HQ</Popup>
-      </Marker>
-    </MapContainer>
+            <Marker position={usmPosition} icon={blueIcon}>
+              <Popup>GeoSafe HQ</Popup>
+            </Marker>
+          </>
+        )}
+      </MapContainer>
+    </div>
   );
 }
 
