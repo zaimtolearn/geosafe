@@ -147,6 +147,15 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation }) {
                       {report.category}
                     </span>
 
+                    <div style={{ fontSize: "0.8rem", color: "#333", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "4px", backgroundColor: "#f8f9fa", padding: "6px", borderRadius: "4px", border: "1px solid #eee" }}>
+                      <span>📍</span>
+                      <span>
+                        {report.address
+                          ? report.address
+                          : `${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}`}
+                      </span>
+                    </div>
+
                     {report.imageUrl && (
                       <div style={{ marginTop: "8px" }}>
                         <img

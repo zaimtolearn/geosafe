@@ -6,10 +6,12 @@ function FilterControl({ onFilterApply }) {
 
   // 1. Categories (Multi-select)
   const [categories, setCategories] = useState({
-    Hazard: true,
-    Flood: true,
-    Fire: true,
-    Accident: true,
+    "Infrastructure": true,
+    "Natural Hazard": true,
+    "Traffic": true,
+    "Security": true,
+    "Environment": true,
+    "Other": true
   });
 
   // 2. Status (Multi-select)
@@ -18,8 +20,8 @@ function FilterControl({ onFilterApply }) {
     Unconfirmed: true
   });
 
-  // 3. Time Range (Single-select) - NEW FEATURE
-  const [timeRange, setTimeRange] = useState("all"); // 'all', '24h', '7d'
+  // 3. Time Range (Single-select)
+  const [timeRange, setTimeRange] = useState("7d"); // 'all', '24h', '7d'
 
   const handleCategoryChange = (e) => {
     setCategories({ ...categories, [e.target.name]: e.target.checked });

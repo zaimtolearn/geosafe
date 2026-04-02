@@ -6,6 +6,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import FilterControl from "./components/FilterControl";
 import Sidebar from "./components/Sidebar";
 import AlertSettings from "./components/AlertSettings";
+import PublicStatsWidget from "./components/PublicStatsWidget";
 import { getToken } from 'firebase/messaging';
 import { messaging } from './firebase';
 import * as geofire from 'geofire-common';
@@ -26,7 +27,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 
-// --- Helper to calculate distance (Haversine Formula) ---
+// --- Calculate distance (Haversine Formula) ---
 function getDistanceInKm(lat1, lon1, lat2, lon2) {
   const R = 6371; // Radius of the earth in km
   const dLat = deg2rad(lat2 - lat1);
@@ -38,13 +39,12 @@ function getDistanceInKm(lat1, lon1, lat2, lon2) {
     Math.sin(dLon / 2) *
     Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in km
+  return R * c;
 }
 
 function deg2rad(deg) {
   return deg * (Math.PI / 180);
 }
-// -------------------------------------------------------------
 
 function App() {
   const [user, setUser] = useState(null);
@@ -65,11 +65,18 @@ function App() {
   const [tempLocation, setTempLocation] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // --- UPDATED FILTER STATE ---
+  // --- FILTER STATE ---
   const [activeFilters, setActiveFilters] = useState({
-    categories: { Hazard: true, Accident: true, Flood: true, Fire: true, Infrastructure: true, Traffic: true },
+    categories: {
+      "Infrastructure": true,
+      "Natural Hazard": true,
+      "Traffic": true,
+      "Security": true,
+      "Environment": true,
+      "Other": true
+    },
     statuses: { Confirmed: true, Unconfirmed: true },
-    timeRange: "all" // 'all', '24h', '7d'
+    timeRange: "7d" // 'all', '24h', '7d'
   });
 
   // --- 1. Request Permission & Save Token ---
@@ -77,7 +84,6 @@ function App() {
     try {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
-        // Replace with your actual VAPID key
         const token = await getToken(messaging, {
           vapidKey: "BCKAMmMvKraEcI1BVnRYxiHRrLrzbdQvJFyneMV6Ah5oR-kTfz8bFsnulPtWlZJpaIXuzBaqL4zwiWTltBoil_k"
         });
@@ -85,7 +91,6 @@ function App() {
         // Generate Geohash
         const hash = geofire.geohashForLocation([location.lat, location.lng]);
 
-        // Save to Firestore
         await updateDoc(doc(db, 'users', uid), {
           fcmToken: token,
           alertConfig: {
@@ -105,7 +110,6 @@ function App() {
   // --- 2. Listen for Reports & Trigger Alerts ---
   useEffect(() => {
     const q = query(collection(db, "reports"), orderBy("timestamp", "desc"));
-
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedReports = snapshot.docs.map((doc) => ({
         id: doc.id,
@@ -113,22 +117,14 @@ function App() {
       }));
       setReports(fetchedReports);
 
-      // Check for Alerts
       snapshot.docChanges().forEach((change) => {
         const report = change.doc.data();
         if (change.type === "modified" || change.type === "added") {
-          if (
-            report.status === "Confirmed" &&
-            userAlertConfig?.enabled &&
-            userAlertConfig?.location
-          ) {
+          if (report.status === "Confirmed" && userAlertConfig?.enabled && userAlertConfig?.location) {
             const dist = getDistanceInKm(
-              userAlertConfig.location.lat,
-              userAlertConfig.location.lng,
-              report.location.lat,
-              report.location.lng
+              userAlertConfig.location.lat, userAlertConfig.location.lng,
+              report.location.lat, report.location.lng
             );
-
             if (dist <= userAlertConfig.radius) {
               if (Notification.permission === "granted") {
                 new Notification(`⚠️ DANGER NEARBY!`, {
@@ -200,6 +196,39 @@ function App() {
     alert("Click your home location on the map.");
   };
 
+  // --- DETECT DUPLICATE REPORTS ---
+  const processNewReportLocation = (location) => {
+    const DUPLICATE_THRESHOLD_KM = 0.05;
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const now = new Date();
+
+    // 1. Filter out old reports (Only look at the last 7 days)
+    const recentReports = reports.filter(report => {
+      if (!report.timestamp) return false;
+      const reportDate = report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
+      return (now - reportDate) <= SEVEN_DAYS_MS;
+    });
+
+    // 2. Check for distance ONLY against recent reports
+    const nearbyReport = recentReports.find(report => {
+      const dist = getDistanceInKm(location.lat, location.lng, report.location.lat, report.location.lng);
+      return dist <= DUPLICATE_THRESHOLD_KM;
+    });
+
+    if (nearbyReport) {
+      const proceed = window.confirm(`⚠️ DUPLICATE WARNING ⚠️\n\nThere is already a "${nearbyReport.category}" reported recently (within 50m) at this spot: ${nearbyReport.title}.\n\nClick 'Cancel' to view and upvote the existing report, or click 'OK' if you are sure this is a completely different incident.`);
+      if (!proceed) {
+        setSelectMode(false);
+        handleFlyTo(nearbyReport.location);
+        return;
+      }
+    }
+
+    setTempLocation(location);
+    setSelectMode(false);
+    setShowForm(true);
+  };
+
   const handleMapClick = (location) => {
     if (pickingHome) {
       if (window.confirm("Set this as your Home Location for alerts?")) {
@@ -214,10 +243,9 @@ function App() {
       return;
     }
 
+    // 2. handle reporting mode (DUPLICATE DETECTION)
     if (selectMode) {
-      setTempLocation(location);
-      setSelectMode(false);
-      setShowForm(true);
+      processNewReportLocation(location);
     }
   };
 
@@ -250,7 +278,31 @@ function App() {
   const handleFilterApply = (newFilters) => setActiveFilters(newFilters);
   const handleLogin = async () => { try { await signInWithPopup(auth, googleProvider); } catch (error) { console.error(error); } };
   const handleLogout = async () => { await signOut(auth); };
-  const startReporting = () => { setSelectMode(true); alert("Click on the map to set the incident location."); };
+
+  // --- NEW AUTO-GPS WORKFLOW ---
+  const startReporting = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
+          if (window.confirm("📍 Location detected! Use your current location for this report?\n\nClick 'OK' to use it, or 'Cancel' to pick manually on the map.")) {
+            processNewReportLocation(loc); // Check duplicates directly!
+          } else {
+            setSelectMode(true);
+            alert("Tap map to select location...");
+          }
+        },
+        (error) => {
+          setSelectMode(true);
+          alert("Could not detect location. Please tap map to select location...");
+        },
+        { enableHighAccuracy: true } // Request best mobile accuracy
+      );
+    } else {
+      setSelectMode(true);
+      alert("Tap map to select location...");
+    }
+  };
 
   const handleAddReport = async (reportData) => {
     setIsUploading(true);
@@ -264,6 +316,7 @@ function App() {
       await addDoc(collection(db, "reports"), {
         title: reportData.title,
         category: reportData.category,
+        address: reportData.address || "",
         location: tempLocation,
         imageUrl: imageUrl,
         timestamp: new Date(),
@@ -315,7 +368,7 @@ function App() {
 
         {user ? (
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <button onClick={() => setShowAlertSettings(true)} style={styles.iconBtn} title="Alert Settings">🔔</button>
+            <button onClick={() => setShowAlertSettings(true)} style={styles.iconBtn} title="Alert Settings">🔔 Alert</button>
             <button onClick={() => setShowSidebar(true)} style={styles.outlineBtn}>My Reports</button>
 
             {userRole === "admin" && (
@@ -337,6 +390,7 @@ function App() {
 
       {/* Components */}
       {!selectMode && <FilterControl onFilterApply={handleFilterApply} />}
+      {!selectMode && <PublicStatsWidget reports={reports} />}
 
       <AlertSettings
         isOpen={showAlertSettings}
@@ -356,7 +410,7 @@ function App() {
 
       <Map
         onMapClick={handleMapClick}
-        reports={filteredReports} // <--- PASSING FILTERED LIST HERE
+        reports={filteredReports}
         onVote={handleVote}
         userId={user ? user.uid : null}
         flyToLocation={flyToLocation}
@@ -409,7 +463,7 @@ const styles = {
   logoutBtn: { padding: "5px 10px", backgroundColor: "#eee", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem" },
   adminBtn: { backgroundColor: "black", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer" },
   outlineBtn: { background: "none", border: "1px solid #ddd", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "0.9rem" },
-  iconBtn: { background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer" },
+  iconBtn: { background: "orange", border: "1px solid #ddd", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "0.9rem" },
   fab: { position: "absolute", bottom: "30px", right: "30px", zIndex: 999, padding: "15px 20px", fontSize: "16px", backgroundColor: "#e63946", color: "white", border: "none", borderRadius: "50px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" },
   banner: { position: "absolute", top: "70px", left: "50%", transform: "translateX(-50%)", zIndex: 999, backgroundColor: "white", padding: "10px 20px", borderRadius: "30px", boxShadow: "0 2px 10px rgba(0,0,0,0.2)", fontWeight: "bold" },
   loadingOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, fontSize: "1.5rem", fontWeight: "bold" },

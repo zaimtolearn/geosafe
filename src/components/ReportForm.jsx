@@ -1,62 +1,119 @@
 // src/components/ReportForm.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './ReportForm.css';
+
+function formatAddressFromNominatim(data, fallbackLat, fallbackLng) {
+  if (!data) return `${fallbackLat.toFixed(4)}, ${fallbackLng.toFixed(4)}`;
+
+  const addr = data.address || {};
+
+  // Build a clear, human-readable address with street + postcode.
+  const streetLine = [addr.house_number, addr.road || addr.pedestrian || addr.footway]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  const locality =
+    addr.suburb ||
+    addr.neighbourhood ||
+    addr.village ||
+    addr.town ||
+    addr.city_district ||
+    '';
+
+  const city = addr.city || addr.town || addr.village || addr.county || '';
+  const state = addr.state || '';
+  const postcode = addr.postcode || '';
+  const country = addr.country || '';
+
+  const parts = [streetLine, locality, city, state, postcode, country].filter(Boolean);
+
+  if (parts.length > 0) {
+    return parts.join(', ');
+  }
+
+  if (data.display_name) {
+    return data.display_name;
+  }
+
+  return `${fallbackLat.toFixed(4)}, ${fallbackLng.toFixed(4)}`;
+}
 
 function ReportForm({ onSubmit, onCancel, preSelectedLocation, isGuest }) {
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Hazard');
-  const [file, setFile] = useState(null); // Store the selected file
+  const [category, setCategory] = useState('Infrastructure');
+  const [file, setFile] = useState(null);
+  const [address, setAddress] = useState("Fetching location details...");
+
+  useEffect(() => {
+    if (preSelectedLocation) {
+      const { lat, lng } = preSelectedLocation;
+
+      // Call the free OpenStreetMap API
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+        .then(res => res.json())
+        .then(data => {
+          setAddress(formatAddressFromNominatim(data, lat, lng));
+        })
+        .catch(() => {
+          // If the internet fails, fallback to coordinates
+          setAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        });
+    }
+  }, [preSelectedLocation]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Pass the file along with the data
-    onSubmit({ title, category, file });
+    onSubmit({ title, category, file, address });
   };
 
   return (
     <div className="form-overlay">
       <div className="form-card">
         <h2>Report Incident</h2>
-        {isGuest && <small style={{color: 'red'}}>Reporting as Guest</small>}
-        
-        <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '10px' }}>
-          Location: {preSelectedLocation ? 
-            `${preSelectedLocation.lat.toFixed(4)}, ${preSelectedLocation.lng.toFixed(4)}` 
-            : 'Unknown'}
-        </p>
+        {isGuest && <small style={{ color: 'red' }}>Reporting as Guest</small>}
+
+        {/* Display the real address */}
+        <div style={{ backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '5px', marginBottom: '15px', border: '1px solid #ddd' }}>
+          <p style={{ fontSize: '0.85rem', color: '#333', margin: 0 }}>
+            <strong>📍 Location:</strong><br />
+            {address}
+          </p>
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">
             <label>Title:</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="form-input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="E.g., Fallen Tree"
-              required 
+              placeholder="E.g., Broken Streetlight"
+              required
             />
           </div>
 
           <div className="input-group">
             <label>Category:</label>
-            <select 
+            <select
               className="form-input"
-              value={category} 
+              value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
-              <option value="Hazard">Hazard</option>
-              <option value="Accident">Accident</option>
-              <option value="Flood">Flood</option>
-              <option value="Fire">Fire</option>
+              <option value="Infrastructure">Infrastructure</option>
+              <option value="Natural Hazard">Natural Hazard</option>
+              <option value="Traffic">Traffic</option>
+              <option value="Security">Security</option>
+              <option value="Environment">Environment</option>
+              <option value="Other">Other</option>
             </select>
           </div>
 
-          {/* NEW: Image Upload Input */}
           <div className="input-group">
             <label>Photo (Optional):</label>
-            <input 
-              type="file" 
+            <input
+              type="file"
               accept="image/*"
               onChange={(e) => setFile(e.target.files[0])}
               className="form-input"
