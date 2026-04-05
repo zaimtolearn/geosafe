@@ -8,6 +8,7 @@ import {
   useMap,
   useMapEvents,
   ZoomControl,
+  Circle,
 } from "react-leaflet";
 import HeatmapLayer from './HeatmapLayer';
 import "leaflet/dist/leaflet.css";
@@ -39,6 +40,14 @@ const greenIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+const homeIcon = new L.divIcon({
+  html: '<div style="font-size: 28px; text-shadow: 0px 2px 5px rgba(0,0,0,0.5);">🏠</div>',
+  className: 'custom-home-icon',
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+  popupAnchor: [0, -15]
+});
+
 // Helper to move the map
 function MapController({ center }) {
   const map = useMap();
@@ -60,7 +69,7 @@ function LocationPicker({ onLocationSelect }) {
   return null;
 }
 
-function Map({ onMapClick, reports = [], onVote, userId, flyToLocation }) {
+function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAlertConfig }) {
   const usmPosition = [5.3556, 100.3025];
 
   const [showHeatmap, setShowHeatmap] = useState(false);
@@ -109,6 +118,38 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation }) {
         {/* Click Listener Helper */}
         {onMapClick && <LocationPicker onLocationSelect={onMapClick} />}
 
+        {/* 4. --- NEW: RENDER HOME ZONE (Visible even if Heatmap is on!) --- */}
+        {userAlertConfig && userAlertConfig.enabled && userAlertConfig.location && (
+          <>
+            {/* The Semi-Transparent Radius Circle */}
+            <Circle
+              center={[userAlertConfig.location.lat, userAlertConfig.location.lng]}
+              radius={userAlertConfig.radius * 1000} // Convert km to meters for Leaflet!
+              pathOptions={{
+                color: '#ff9800',     // Orange border
+                fillColor: '#ff9800', // Orange fill
+                fillOpacity: 0.15,    // Lightly transparent
+                weight: 2,            // Border thickness
+                dashArray: '5, 5'     // Dashed border line for a "radar" look
+              }}
+            />
+            {/* The House Pin */}
+            <Marker
+              position={[userAlertConfig.location.lat, userAlertConfig.location.lng]}
+              icon={homeIcon}
+            >
+              <Popup>
+                <div style={{ textAlign: 'center', minWidth: '120px' }}>
+                  <strong>🏠 Home Base</strong>
+                  <br />
+                  <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                    Alert Radius: {userAlertConfig.radius}km
+                  </span>
+                </div>
+              </Popup>
+            </Marker>
+          </>
+        )}
         {showHeatmap ? (
           <HeatmapLayer points={reports} />
         ) : (

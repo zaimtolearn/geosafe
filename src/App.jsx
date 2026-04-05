@@ -121,16 +121,22 @@ function App() {
         const report = change.doc.data();
         if (change.type === "modified" || change.type === "added") {
           if (report.status === "Confirmed" && userAlertConfig?.enabled && userAlertConfig?.location) {
-            const dist = getDistanceInKm(
-              userAlertConfig.location.lat, userAlertConfig.location.lng,
-              report.location.lat, report.location.lng
-            );
-            if (dist <= userAlertConfig.radius) {
-              if (Notification.permission === "granted") {
-                new Notification(`⚠️ DANGER NEARBY!`, {
-                  body: `${report.title} verified within ${dist.toFixed(1)}km.`,
-                  icon: report.imageUrl || "/icon-192.png",
-                });
+            const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
+            const now = new Date();
+            const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+            if ((now - rDate) <= SEVEN_DAYS_MS) {
+              const dist = getDistanceInKm(
+                userAlertConfig.location.lat, userAlertConfig.location.lng,
+                report.location.lat, report.location.lng
+              );
+              if (dist <= userAlertConfig.radius) {
+                if (Notification.permission === "granted") {
+                  new Notification(`⚠️ DANGER NEARBY!`, {
+                    body: `${report.title} verified within ${dist.toFixed(1)}km.`,
+                    icon: report.imageUrl || "/icon-192.png",
+                  });
+                }
               }
             }
           }
@@ -353,6 +359,16 @@ function App() {
 
   const handleVerifyReport = async (reportId) => { await updateDoc(doc(db, "reports", reportId), { status: "Confirmed" }); alert("Report verified!"); };
   const handleDeleteReport = async (reportId) => { await deleteDoc(doc(db, "reports", reportId)); };
+  const handleEditReport = async (reportId, updatedData) => {
+    try {
+      const reportRef = doc(db, "reports", reportId);
+      await updateDoc(reportRef, updatedData);
+      alert("Report updated successfully!");
+    } catch (error) {
+      console.error("Error updating report:", error);
+      alert("Failed to update report.");
+    }
+  };
   const handleFlyTo = (location) => { setFlyToLocation([location.lat, location.lng]); setShowSidebar(false); };
 
   const myReports = user ? reports.filter((r) => r.userId === user.uid) : [];
@@ -414,6 +430,7 @@ function App() {
         onVote={handleVote}
         userId={user ? user.uid : null}
         flyToLocation={flyToLocation}
+        userAlertConfig={userAlertConfig}
       />
 
       {/* Floating Action Button */}
@@ -448,6 +465,7 @@ function App() {
             reports={reports}
             onVerify={handleVerifyReport}
             onDelete={handleDeleteReport}
+            onEdit={handleEditReport}
             onClose={() => setShowAdmin(false)}
           />
         </div>

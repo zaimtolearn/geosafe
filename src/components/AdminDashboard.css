@@ -1,70 +1,229 @@
 /* src/components/AdminDashboard.css */
-.admin-container {
-    padding: 20px;
-    max-width: 800px;
+
+.admin-dashboard-pro {
+    max-width: 1200px;
     margin: 0 auto;
-    background-color: #f9f9f9;
-    min-height: 100vh;
-}
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #333;
+  }
   
-.admin-header {
+  /* Header & Stats */
+  .admin-header-pro {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-}
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eaeaea;
+  }
   
-.report-card {
-    background: white;
-    border: 1px solid #ddd;
-    padding: 15px;
-    margin-bottom: 15px;
+  .admin-header-pro h2 {
+    margin: 0;
+    font-size: 1.8rem;
+    color: #111;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .btn-export-pro {
+    background-color: #10b981;
+    color: white;
+    border: none;
+    padding: 10px 20px;
     border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+  }
+  
+  .btn-export-pro:hover {
+    background-color: #059669;
+    transform: translateY(-1px);
+  }
+  
+  /* Tabs */
+  .admin-tabs {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+  }
+  
+  .tab-btn {
+    padding: 10px 20px;
+    border: none;
+    background-color: transparent;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+  }
+  
+  .tab-btn:hover {
+    color: #111;
+  }
+  
+  .tab-btn.active {
+    color: #3b82f6;
+    border-bottom: 3px solid #3b82f6;
+  }
+  
+  .tab-btn.active-danger {
+    color: #ef4444;
+    border-bottom: 3px solid #ef4444;
+  }
+  
+  .badge-count {
+    background-color: #ef4444;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 8px;
+  }
+  
+  /* Grid & Cards */
+  .report-grid-pro {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+  }
+  
+  .report-card-pro {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    padding: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s;
+  }
+  
+  .report-card-pro:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .report-card-pro.flagged-card {
+    border: 1px solid #fca5a5;
+    background-color: #fef2f2;
+  }
+  
+  .card-header-pro {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-}
+    align-items: flex-start;
+    margin-bottom: 15px;
+  }
   
-.report-info h3 { margin: 0 0 5px 0; font-size: 1.1rem; }
-.report-info p { margin: 0; color: #666; font-size: 0.9rem; }
+  .card-title-pro {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1.4;
+  }
   
-.status-badge {
+  /* Badges & Pills */
+  .pill {
     display: inline-block;
-    padding: 3px 8px;
-    border-radius: 12px;
+    padding: 4px 10px;
+    border-radius: 50px;
     font-size: 0.75rem;
-    font-weight: bold;
-    margin-left: 10px;
-}
-.status-Unconfirmed { background-color: #eee; color: #555; }
-.status-Confirmed { background-color: #d4edda; color: #155724; }
+    font-weight: 600;
+  }
   
-.admin-actions { display: flex; gap: 10px; }
+  .pill-category { background-color: #f3f4f6; color: #4b5563; margin-right: 8px; }
+  .pill-votes { background-color: #e0f2fe; color: #0369a1; }
+  .pill-status-confirmed { background-color: #d1fae5; color: #065f46; }
+  .pill-status-unconfirmed { background-color: #fef3c7; color: #92400e; }
   
-.btn-verify {
-    background-color: #28a745;
-    color: white;
+  .card-meta-pro {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+  }
+  
+  .card-location-pro {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: #f9fafb;
+    padding: 8px;
+    border-radius: 6px;
+  }
+  
+  .card-image-link {
+    font-size: 0.85rem;
+    color: #3b82f6;
+    text-decoration: none;
+    font-weight: 500;
+    margin-bottom: 15px;
+    display: inline-block;
+  }
+  
+  .card-image-link:hover { text-decoration: underline; }
+  
+  /* Buttons */
+  .card-actions-pro {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    border-top: 1px solid #f3f4f6;
+    padding-top: 15px;
+  }
+  
+  .btn-pro {
+    flex: 1;
+    padding: 8px 0;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
     border: none;
+    transition: all 0.2s;
+  }
+  
+  .btn-pro-verify { background-color: #10b981; color: white; }
+  .btn-pro-verify:hover { background-color: #059669; }
+  
+  .btn-pro-edit { background-color: #f3f4f6; color: #374151; }
+  .btn-pro-edit:hover { background-color: #e5e7eb; }
+  
+  .btn-pro-delete { background-color: #fee2e2; color: #dc2626; }
+  .btn-pro-delete:hover { background-color: #fecaca; }
+  
+  /* Edit Form */
+  .edit-form-pro {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  
+  .edit-input-pro, .edit-select-pro {
+    width: 100%;
     padding: 8px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-}
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+  }
   
-.btn-delete {
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-  
-.btn-close {
-    background-color: #6c757d;
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    border-radius: 4px;
-    cursor: pointer;
-}
+  .edit-input-pro:focus, .edit-select-pro:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
