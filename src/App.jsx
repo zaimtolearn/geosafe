@@ -1,5 +1,6 @@
 // src/App.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import "./App.css";
 import Map from "./components/Map";
 import ReportForm from "./components/ReportForm";
 import AdminDashboard from "./components/AdminDashboard";
@@ -11,7 +12,8 @@ import { getToken } from 'firebase/messaging';
 import { messaging } from './firebase';
 import * as geofire from 'geofire-common';
 import { db, auth, googleProvider, storage } from "./firebase";
-import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+// BUGFIX: Switched back to signInWithPopup and added updateProfile
+import { signInWithPopup, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   collection,
@@ -29,7 +31,7 @@ import {
 
 // --- Calculate distance (Haversine Formula) ---
 function getDistanceInKm(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of the earth in km
+  const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
@@ -42,8 +44,22 @@ function getDistanceInKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-function deg2rad(deg) {
-  return deg * (Math.PI / 180);
+function deg2rad(deg) { return deg * (Math.PI / 180); }
+
+const COMPACT_HEADER_QUERY = "(max-width: 640px)";
+
+function useCompactHeaderNav() {
+  const [compact, setCompact] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(COMPACT_HEADER_QUERY).matches : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(COMPACT_HEADER_QUERY);
+    const onChange = () => setCompact(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return compact;
 }
 
 function App() {
@@ -51,12 +67,10 @@ function App() {
   const [userRole, setUserRole] = useState("user");
   const [reports, setReports] = useState([]);
 
-  // Alert & Settings States
   const [showAlertSettings, setShowAlertSettings] = useState(false);
   const [userAlertConfig, setUserAlertConfig] = useState(null);
   const [pickingHome, setPickingHome] = useState(false);
 
-  // UI States
   const [showSidebar, setShowSidebar] = useState(false);
   const [flyToLocation, setFlyToLocation] = useState(null);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -65,21 +79,15 @@ function App() {
   const [tempLocation, setTempLocation] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // --- FILTER STATE ---
   const [activeFilters, setActiveFilters] = useState({
     categories: {
-      "Infrastructure": true,
-      "Natural Hazard": true,
-      "Traffic": true,
-      "Security": true,
-      "Environment": true,
-      "Other": true
+      "Infrastructure": true, "Natural Hazard": true, "Traffic": true,
+      "Security": true, "Environment": true, "Other": true
     },
     statuses: { Confirmed: true, Unconfirmed: true },
-    timeRange: "7d" // 'all', '24h', '7d'
+    timeRange: "7d"
   });
 
-  // --- 1. Request Permission & Save Token ---
   const requestNotificationPermission = async (uid, location) => {
     try {
       const permission = await Notification.requestPermission();
@@ -87,66 +95,66 @@ function App() {
         const token = await getToken(messaging, {
           vapidKey: "BCKAMmMvKraEcI1BVnRYxiHRrLrzbdQvJFyneMV6Ah5oR-kTfz8bFsnulPtWlZJpaIXuzBaqL4zwiWTltBoil_k"
         });
-
-        // Generate Geohash
         const hash = geofire.geohashForLocation([location.lat, location.lng]);
-
         await updateDoc(doc(db, 'users', uid), {
           fcmToken: token,
-          alertConfig: {
-            enabled: true,
-            location: location,
-            geohash: hash,
-            radius: 5
-          }
+          alertConfig: { enabled: true, location: location, geohash: hash, radius: 5 }
         });
-        console.log("Token & Geohash saved!", token);
       }
-    } catch (error) {
-      console.error("Notification Error:", error);
-    }
+    } catch (error) { console.error("Notification Error:", error); }
   };
 
-  // --- 2. Listen for Reports & Trigger Alerts ---
+  // BUGFIX: Use a ref so it doesn't reset when userAlertConfig changes
+  const isFirstSnapshot = useRef(true);
+
   useEffect(() => {
     const q = query(collection(db, "reports"), orderBy("timestamp", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedReports = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setReports(fetchedReports);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedReports = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setReports(fetchedReports);
 
-      snapshot.docChanges().forEach((change) => {
-        const report = change.doc.data();
-        if (change.type === "modified" || change.type === "added") {
-          if (report.status === "Confirmed" && userAlertConfig?.enabled && userAlertConfig?.location) {
-            const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
-            const now = new Date();
-            const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+        const notify = !isFirstSnapshot.current;
+        isFirstSnapshot.current = false;
 
-            if ((now - rDate) <= SEVEN_DAYS_MS) {
-              const dist = getDistanceInKm(
-                userAlertConfig.location.lat, userAlertConfig.location.lng,
-                report.location.lat, report.location.lng
-              );
-              if (dist <= userAlertConfig.radius) {
-                if (Notification.permission === "granted") {
-                  new Notification(`⚠️ DANGER NEARBY!`, {
-                    body: `${report.title} verified within ${dist.toFixed(1)}km.`,
-                    icon: report.imageUrl || "/icon-192.png",
-                  });
+        snapshot.docChanges().forEach((change) => {
+          if (!notify) return;
+          const report = change.doc.data();
+          if (change.type === "modified" || change.type === "added") {
+            if (report.status === "Confirmed" && userAlertConfig?.enabled && userAlertConfig?.location) {
+              if (!report.location?.lat || !report.location?.lng) return;
+              const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
+              const now = new Date();
+              const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+              if ((now - rDate) <= SEVEN_DAYS_MS) {
+                const radiusKm = userAlertConfig.radius ?? 5;
+                const dist = getDistanceInKm(
+                  userAlertConfig.location.lat, userAlertConfig.location.lng,
+                  report.location.lat, report.location.lng
+                );
+                if (dist <= radiusKm) {
+                  if (Notification.permission === "granted") {
+                    new Notification(`⚠️ DANGER NEARBY!`, {
+                      body: `${report.title} verified within ${dist.toFixed(1)}km.`,
+                      icon: report.imageUrl || "/icon-192.png",
+                    });
+                  }
                 }
               }
             }
           }
-        }
-      });
-    });
+        });
+      },
+      (err) => console.error("Reports listener failed:", err)
+    );
     return () => unsubscribe();
   }, [userAlertConfig]);
 
-  // --- 3. Auth Listener ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -176,16 +184,10 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- Handlers ---
   const handleSaveAlertSettings = async (newSettings) => {
     const locationToSave = newSettings.location || userAlertConfig?.location;
-    const updatedConfig = {
-      enabled: newSettings.enabled,
-      radius: newSettings.radius,
-      location: locationToSave,
-    };
+    const updatedConfig = { enabled: newSettings.enabled, radius: newSettings.radius, location: locationToSave };
     setUserAlertConfig(updatedConfig);
-
     if (user) {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { alertConfig: updatedConfig });
@@ -202,20 +204,16 @@ function App() {
     alert("Click your home location on the map.");
   };
 
-  // --- DETECT DUPLICATE REPORTS ---
   const processNewReportLocation = (location) => {
     const DUPLICATE_THRESHOLD_KM = 0.05;
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     const now = new Date();
-
-    // 1. Filter out old reports (Only look at the last 7 days)
     const recentReports = reports.filter(report => {
       if (!report.timestamp) return false;
       const reportDate = report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
       return (now - reportDate) <= SEVEN_DAYS_MS;
     });
 
-    // 2. Check for distance ONLY against recent reports
     const nearbyReport = recentReports.find(report => {
       const dist = getDistanceInKm(location.lat, location.lng, report.location.lat, report.location.lng);
       return dist <= DUPLICATE_THRESHOLD_KM;
@@ -229,7 +227,6 @@ function App() {
         return;
       }
     }
-
     setTempLocation(location);
     setSelectMode(false);
     setShowForm(true);
@@ -238,71 +235,53 @@ function App() {
   const handleMapClick = (location) => {
     if (pickingHome) {
       if (window.confirm("Set this as your Home Location for alerts?")) {
-        handleSaveAlertSettings({
-          ...userAlertConfig,
-          location: location,
-          enabled: true,
-        });
+        handleSaveAlertSettings({ ...userAlertConfig, location: location, enabled: true });
         setPickingHome(false);
         setShowAlertSettings(true);
       }
       return;
     }
-
-    // 2. handle reporting mode (DUPLICATE DETECTION)
-    if (selectMode) {
-      processNewReportLocation(location);
-    }
+    if (selectMode) processNewReportLocation(location);
   };
 
-  // --- UPDATED FILTER LOGIC ---
   const filteredReports = reports.filter((report) => {
-    // 1. Category Check
     const categoryMatch = activeFilters.categories[report.category] === true;
-
-    // 2. Status Check
     const currentStatus = report.status || "Unconfirmed";
     const statusMatch = activeFilters.statuses[currentStatus] === true;
-
-    // 3. Time Check (NEW)
     let timeMatch = true;
     if (activeFilters.timeRange !== 'all' && report.timestamp) {
       const reportDate = report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
       const now = new Date();
-      const hoursDiff = (now - reportDate) / (1000 * 60 * 60); // Difference in hours
-
-      if (activeFilters.timeRange === '24h') {
-        timeMatch = hoursDiff <= 24;
-      } else if (activeFilters.timeRange === '7d') {
-        timeMatch = hoursDiff <= (24 * 7);
-      }
+      const hoursDiff = (now - reportDate) / (1000 * 60 * 60);
+      if (activeFilters.timeRange === '24h') timeMatch = hoursDiff <= 24;
+      else if (activeFilters.timeRange === '7d') timeMatch = hoursDiff <= (24 * 7);
     }
-
     return categoryMatch && statusMatch && timeMatch;
   });
 
   const handleFilterApply = (newFilters) => setActiveFilters(newFilters);
-  const handleLogin = async () => { try { await signInWithPopup(auth, googleProvider); } catch (error) { console.error(error); } };
+
+  // BUGFIX: Switched back to signInWithPopup for reliability
+  const handleLogin = async () => {
+    try { await signInWithPopup(auth, googleProvider); }
+    catch (error) { console.error(error); alert("Sign in failed. Check connection or popup blockers."); }
+  };
   const handleLogout = async () => { await signOut(auth); };
 
-  // --- NEW AUTO-GPS WORKFLOW ---
   const startReporting = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
           if (window.confirm("📍 Location detected! Use your current location for this report?\n\nClick 'OK' to use it, or 'Cancel' to pick manually on the map.")) {
-            processNewReportLocation(loc); // Check duplicates directly!
+            processNewReportLocation(loc);
           } else {
             setSelectMode(true);
             alert("Tap map to select location...");
           }
         },
-        (error) => {
-          setSelectMode(true);
-          alert("Could not detect location. Please tap map to select location...");
-        },
-        { enableHighAccuracy: true } // Request best mobile accuracy
+        (error) => { setSelectMode(true); alert("Could not detect location. Please tap map to select location..."); },
+        { enableHighAccuracy: true }
       );
     } else {
       setSelectMode(true);
@@ -320,18 +299,10 @@ function App() {
         imageUrl = await getDownloadURL(snapshot.ref);
       }
       await addDoc(collection(db, "reports"), {
-        title: reportData.title,
-        category: reportData.category,
-        address: reportData.address || "",
-        location: tempLocation,
-        imageUrl: imageUrl,
-        timestamp: new Date(),
-        userId: user ? user.uid : "guest",
-        userName: user ? user.displayName : "Anonymous",
-        userPhoto: user ? user.photoURL : null,
-        confirmVotes: 0,
-        denyVotes: 0,
-        status: "Unconfirmed",
+        title: reportData.title, category: reportData.category, address: reportData.address || "",
+        location: tempLocation, imageUrl: imageUrl, timestamp: new Date(),
+        userId: user ? user.uid : "guest", userName: user ? user.displayName : "Anonymous",
+        userPhoto: user ? user.photoURL : null, confirmVotes: 0, denyVotes: 0, status: "Unconfirmed",
       });
       alert("Report submitted successfully!");
       setShowForm(false);
@@ -339,9 +310,7 @@ function App() {
     } catch (error) {
       console.error("Error adding report: ", error);
       alert("Error saving report.");
-    } finally {
-      setIsUploading(false);
-    }
+    } finally { setIsUploading(false); }
   };
 
   const handleVote = async (reportId, voteType) => {
@@ -359,115 +328,109 @@ function App() {
 
   const handleVerifyReport = async (reportId) => { await updateDoc(doc(db, "reports", reportId), { status: "Confirmed" }); alert("Report verified!"); };
   const handleDeleteReport = async (reportId) => { await deleteDoc(doc(db, "reports", reportId)); };
+
   const handleEditReport = async (reportId, updatedData) => {
     try {
       const reportRef = doc(db, "reports", reportId);
       await updateDoc(reportRef, updatedData);
       alert("Report updated successfully!");
-    } catch (error) {
-      console.error("Error updating report:", error);
-      alert("Failed to update report.");
-    }
+    } catch (error) { console.error("Error updating report:", error); alert("Failed to update report."); }
   };
-  const handleFlyTo = (location) => { setFlyToLocation([location.lat, location.lng]); setShowSidebar(false); };
 
+  // --- NEW: PROFILE UPDATER ---
+  const handleUpdateProfile = async (newName) => {
+    if (!user) return;
+    try {
+      await updateProfile(user, { displayName: newName });
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { displayName: newName });
+      setUser({ ...user, displayName: newName });
+      alert("Profile updated successfully!");
+    } catch (error) { console.error("Error updating profile:", error); alert("Failed to update profile."); }
+  };
+
+  const handleFlyTo = (location) => { setFlyToLocation([location.lat, location.lng]); setShowSidebar(false); };
   const myReports = user ? reports.filter((r) => r.userId === user.uid) : [];
+  const compactHeaderNav = useCompactHeaderNav();
 
   return (
     <div>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src="/icon-192.png" alt="Logo" style={{ width: '30px', height: '30px' }} />
-          <h2 style={{ margin: 0, fontSize: "1.2rem" }}>GeoSafe</h2>
+      <header className="app-header">
+        <div className="app-header-brand">
+          <img className="app-header-logo" src="/icon-192.png" alt="" />
+          <h1 className="app-header-title">GeoSafe</h1>
         </div>
 
         {user ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <button onClick={() => setShowAlertSettings(true)} style={styles.iconBtn} title="Alert Settings">🔔 Alert</button>
-            <button onClick={() => setShowSidebar(true)} style={styles.outlineBtn}>My Reports</button>
-
-            {userRole === "admin" && (
-              <button onClick={() => setShowAdmin(true)} style={styles.adminBtn}>Admin</button>
+          <div className="app-header-actions">
+            {compactHeaderNav ? (
+              <select
+                className="app-nav-select"
+                aria-label="Quick actions: alerts, reports, or admin"
+                value=""
+                onChange={(e) => {
+                  const v = e.target.value;
+                  e.target.value = "";
+                  if (v === "alert") setShowAlertSettings(true);
+                  else if (v === "reports") setShowSidebar(true);
+                  else if (v === "admin") setShowAdmin(true);
+                }}
+              >
+                <option value="">Quick actions</option>
+                <option value="alert">Alerts</option>
+                <option value="reports">My reports</option>
+                {userRole === "admin" && <option value="admin">Admin</option>}
+              </select>
+            ) : (
+              <>
+                <button type="button" className="app-header-btn app-header-btn--alert" onClick={() => setShowAlertSettings(true)} title="Alert settings">
+                  Alerts
+                </button>
+                <button type="button" className="app-header-btn app-header-btn--outline" onClick={() => setShowSidebar(true)}>
+                  My reports
+                </button>
+                {userRole === "admin" && (
+                  <button type="button" className="app-header-btn app-header-btn--admin" onClick={() => setShowAdmin(true)}>
+                    Admin
+                  </button>
+                )}
+              </>
             )}
 
-            <img
-              src={user.photoURL || "/icon-192.png"}
-              alt="User"
-              style={styles.avatar}
-              onError={(e) => { e.target.src = "/icon-192.png" }}
-            />
-            <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
+            <img className="app-header-avatar" src={user.photoURL || "/icon-192.png"} alt="" onError={(e) => { e.target.src = "/icon-192.png" }} />
+            <button type="button" className="app-header-btn app-header-btn--ghost" onClick={handleLogout}>Log out</button>
           </div>
         ) : (
-          <button onClick={handleLogin} style={styles.loginBtn}>Sign in</button>
+          <button type="button" className="app-header-btn app-header-btn--primary" onClick={handleLogin}>Sign in</button>
         )}
-      </div>
+      </header>
 
-      {/* Components */}
       {!selectMode && <FilterControl onFilterApply={handleFilterApply} />}
       {!selectMode && <PublicStatsWidget reports={reports} />}
 
-      <AlertSettings
-        isOpen={showAlertSettings}
-        onClose={() => setShowAlertSettings(false)}
-        currentSettings={userAlertConfig}
-        onSave={handleSaveAlertSettings}
-        onPickLocation={startPickingHome}
-      />
+      <AlertSettings isOpen={showAlertSettings} onClose={() => setShowAlertSettings(false)} currentSettings={userAlertConfig} onSave={handleSaveAlertSettings} onPickLocation={startPickingHome} />
 
-      <Sidebar
-        isOpen={showSidebar}
-        onClose={() => setShowSidebar(false)}
-        user={user}
-        userReports={myReports}
-        onFlyTo={handleFlyTo}
-      />
+      {/* BUGFIX: Pass onUpdateProfile down to the sidebar! */}
+      <Sidebar isOpen={showSidebar} onClose={() => setShowSidebar(false)} user={user} userReports={myReports} onFlyTo={handleFlyTo} onUpdateProfile={handleUpdateProfile} />
 
-      <Map
-        onMapClick={handleMapClick}
-        reports={filteredReports}
-        onVote={handleVote}
-        userId={user ? user.uid : null}
-        flyToLocation={flyToLocation}
-        userAlertConfig={userAlertConfig}
-      />
+      <Map onMapClick={handleMapClick} reports={filteredReports} onVote={handleVote} userId={user ? user.uid : null} flyToLocation={flyToLocation} userAlertConfig={userAlertConfig} />
 
-      {/* Floating Action Button */}
       {!selectMode && !showForm && (
         <button onClick={startReporting} style={styles.fab}>+ Report Incident</button>
       )}
 
-      {/* Banners & Overlays */}
       {pickingHome && <div style={{ ...styles.banner, backgroundColor: "#17a2b8", color: "white" }}>Tap exact location of your home...</div>}
       {selectMode && <div style={styles.banner}>Tap map to select location...</div>}
 
       {showForm && (
-        <ReportForm
-          preSelectedLocation={tempLocation}
-          isGuest={!user}
-          onSubmit={handleAddReport}
-          onCancel={() => { setShowForm(false); setSelectMode(false); }}
-        />
+        <ReportForm preSelectedLocation={tempLocation} isGuest={!user} onSubmit={handleAddReport} onCancel={() => { setShowForm(false); setSelectMode(false); }} />
       )}
 
       {isUploading && <div style={styles.loadingOverlay}>Uploading...</div>}
 
       {showAdmin && (
         <div style={styles.adminOverlay}>
-          <button
-            onClick={() => setShowAdmin(false)}
-            style={{ position: 'absolute', top: '20px', right: '20px', padding: '10px', zIndex: 2001, cursor: 'pointer' }}
-          >
-            ✖ Close
-          </button>
-          <AdminDashboard
-            reports={reports}
-            onVerify={handleVerifyReport}
-            onDelete={handleDeleteReport}
-            onEdit={handleEditReport}
-            onClose={() => setShowAdmin(false)}
-          />
+          <AdminDashboard reports={reports} onVerify={handleVerifyReport} onDelete={handleDeleteReport} onEdit={handleEditReport} onClose={() => setShowAdmin(false)} />
         </div>
       )}
     </div>
@@ -475,17 +438,10 @@ function App() {
 }
 
 const styles = {
-  header: { position: "absolute", top: 0, left: 0, right: 0, height: "60px", backgroundColor: "white", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 20px", zIndex: 1000, boxShadow: "0 2px 5px rgba(0,0,0,0.1)" },
-  avatar: { width: "30px", height: "30px", borderRadius: "50%", objectFit: "cover" },
-  loginBtn: { padding: "8px 15px", backgroundColor: "#4285F4", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" },
-  logoutBtn: { padding: "5px 10px", backgroundColor: "#eee", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem" },
-  adminBtn: { backgroundColor: "black", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer" },
-  outlineBtn: { background: "none", border: "1px solid #ddd", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "0.9rem" },
-  iconBtn: { background: "orange", border: "1px solid #ddd", padding: "6px 10px", borderRadius: "4px", cursor: "pointer", fontSize: "0.9rem" },
   fab: { position: "absolute", bottom: "30px", right: "30px", zIndex: 999, padding: "15px 20px", fontSize: "16px", backgroundColor: "#e63946", color: "white", border: "none", borderRadius: "50px", cursor: "pointer", fontWeight: "bold", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" },
   banner: { position: "absolute", top: "70px", left: "50%", transform: "translateX(-50%)", zIndex: 999, backgroundColor: "white", padding: "10px 20px", borderRadius: "30px", boxShadow: "0 2px 10px rgba(0,0,0,0.2)", fontWeight: "bold" },
   loadingOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, fontSize: "1.5rem", fontWeight: "bold" },
-  adminOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, background: "white", overflowY: "auto" },
+  adminOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 2000, background: "#f8fafc", overflowX: "hidden", overflowY: "auto", WebkitOverflowScrolling: "touch" },
 };
 
 export default App;

@@ -156,66 +156,57 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
   return (
     <div className="admin-dashboard-pro">
 
-      {/* Dashboard Header */}
-      <div className="admin-header-pro">
-        <h2>
-          🛡️ Command Center
-          <span style={{ fontSize: '1rem', color: '#6b7280', fontWeight: 'normal', marginLeft: '10px' }}>
-            ({reports.length} Total Reports)
-          </span>
-        </h2>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={onClose} className="btn-pro btn-pro-edit" style={{ padding: '10px 20px', backgroundColor: '#f3f4f6' }}>
-            ✖ Close
+      <header className="admin-header-pro">
+        <div className="admin-header-title-block">
+          <h2 className="admin-header-title">Command Center</h2>
+          <p className="admin-header-meta">{reports.length} total reports</p>
+        </div>
+        <div className="admin-header-actions">
+          <button type="button" className="admin-btn-close" onClick={onClose} aria-label="Close dashboard">
+            <span className="admin-btn-close-icon" aria-hidden="true">×</span>
+            <span className="admin-btn-close-text">Close</span>
           </button>
-          <button onClick={handleExportCSV} className="btn-export-pro">
-            📥 Export CSV
+          <button type="button" onClick={handleExportCSV} className="btn-export-pro">
+            Export CSV
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Tab Navigation & Filters */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
-        <div className="admin-tabs" style={{ marginBottom: 0 }}>
+      <div className="admin-toolbar">
+        <div className="admin-tabs" role="tablist" aria-label="Report queues">
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'flagged'}
             className={`tab-btn ${activeTab === 'flagged' ? 'active-danger' : ''}`}
             onClick={() => setActiveTab('flagged')}
           >
-            🚨 Moderation Queue
+            Moderation
             {flaggedReports.length > 0 && <span className="badge-count">{flaggedReports.length}</span>}
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'all'}
             className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => setActiveTab('all')}
           >
-            📋 Standard Reports
+            All reports
           </button>
         </div>
 
-        {/* --- NEW: STATUS FILTER DROPDOWN --- */}
         {activeTab === 'all' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Filter By:
-            </span>
+          <div className="admin-filter-row">
+            <label className="admin-filter-label" htmlFor="admin-status-filter">Status</label>
             <select
+              id="admin-status-filter"
+              className="admin-filter-select"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              style={{
-                padding: '8px 15px',
-                borderRadius: '8px',
-                border: '1px solid #d1d5db',
-                backgroundColor: 'white',
-                fontSize: '0.9rem',
-                color: '#374151',
-                cursor: 'pointer',
-                outline: 'none',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-              }}
             >
-              <option value="all">All Statuses</option>
-              <option value="Unconfirmed">⚠️ Pending Only</option>
-              <option value="Confirmed">✅ Verified Only</option>
+              <option value="all">All statuses</option>
+              <option value="Unconfirmed">Pending only</option>
+              <option value="Confirmed">Verified only</option>
             </select>
           </div>
         )}
@@ -228,11 +219,11 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
 
       {/* Empty States */}
       {reportsToDisplay.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '50px', color: '#6b7280', backgroundColor: '#f9fafb', borderRadius: '12px', border: '1px dashed #d1d5db', marginTop: '20px' }}>
-          <h3 style={{ margin: '0 0 10px 0' }}>All Clear!</h3>
-          <p style={{ margin: 0 }}>
+        <div className="admin-empty-state">
+          <h3 className="admin-empty-title">All clear</h3>
+          <p className="admin-empty-text">
             {activeTab === 'flagged'
-              ? 'No flagged reports found in this queue.'
+              ? 'No flagged reports in this queue.'
               : 'No reports match your current filter.'}
           </p>
         </div>
