@@ -125,25 +125,51 @@ function App() {
           if (!notify) return;
           const report = change.doc.data();
           if (change.type === "modified" || change.type === "added") {
-            if (report.status === "Confirmed" && userAlertConfig?.enabled && userAlertConfig?.location) {
+            if (report.status === "Confirmed" && userAlertConfig) {
               if (!report.location?.lat || !report.location?.lng) return;
+
               const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
               const now = new Date();
               const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
               if ((now - rDate) <= SEVEN_DAYS_MS) {
                 const radiusKm = userAlertConfig.radius ?? 5;
-                const dist = getDistanceInKm(
-                  userAlertConfig.location.lat, userAlertConfig.location.lng,
-                  report.location.lat, report.location.lng
-                );
-                if (dist <= radiusKm) {
-                  if (Notification.permission === "granted") {
-                    new Notification(`⚠️ DANGER NEARBY!`, {
-                      body: `${report.title} verified within ${dist.toFixed(1)}km.`,
-                      icon: report.imageUrl || "/icon-192.png",
-                    });
-                  }
+                let triggerAlert = false;
+
+                // Check 1: Home Base Alert
+                if (userAlertConfig.enabled && userAlertConfig.location) {
+                  const distToHome = getDistanceInKm(
+                    userAlertConfig.location.lat, userAlertConfig.location.lng,
+                    report.location.lat, report.location.lng
+                  );
+                  if (distToHome <= radiusKm) triggerAlert = true;
+                }
+
+                // Check 2: LIVE Location Alert
+                if (!triggerAlert && userAlertConfig.liveEnabled && navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition((pos) => {
+                    const distToLive = getDistanceInKm(
+                      pos.coords.latitude, pos.coords.longitude,
+                      report.location.lat, report.location.lng
+                    );
+                    // Live alerts use a stricter 3km radius to avoid spam while driving
+                    if (distToLive <= 3) {
+                      if (Notification.permission === "granted") {
+                        new Notification(`⚠️ LIVE DANGER NEARBY!`, {
+                          body: `${report.title} verified within 3km of your current location.`,
+                          icon: report.imageUrl || "/icon-192.png",
+                        });
+                      }
+                    }
+                  });
+                }
+
+                // Fire the Home Alert if triggered
+                if (triggerAlert && Notification.permission === "granted") {
+                  new Notification(`⚠️ DANGER NEARBY HOME!`, {
+                    body: `${report.title} verified within ${radiusKm}km of your Home Base.`,
+                    icon: report.imageUrl || "/icon-192.png",
+                  });
                 }
               }
             }
@@ -186,13 +212,19 @@ function App() {
 
   const handleSaveAlertSettings = async (newSettings) => {
     const locationToSave = newSettings.location || userAlertConfig?.location;
-    const updatedConfig = { enabled: newSettings.enabled, radius: newSettings.radius, location: locationToSave };
+    const updatedConfig = {
+      enabled: newSettings.enabled,
+      radius: newSettings.radius,
+      liveEnabled: newSettings.liveEnabled, // SAVE LIVE PREFERENCE
+      location: locationToSave,
+    };
     setUserAlertConfig(updatedConfig);
+
     if (user) {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { alertConfig: updatedConfig });
       alert("Alert settings saved!");
-      if (newSettings.enabled && locationToSave) {
+      if ((newSettings.enabled || newSettings.liveEnabled) && locationToSave) {
         await requestNotificationPermission(user.uid, locationToSave);
       }
     }

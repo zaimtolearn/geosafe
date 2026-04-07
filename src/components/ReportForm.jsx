@@ -1,42 +1,18 @@
 // src/components/ReportForm.jsx
 import { useState, useEffect } from 'react';
+import { containsProfanity } from '../profanityFilter';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import './ReportForm.css';
 
-// --- PROFANITY FILTER DICTIONARY (FR-21) ---
-const BANNED_WORDS = [
-  "fuck", "fuk", "fck", "shit", "bitch", "asshole", "crap", "damn", "dick", "ass",
-  "pussy", "slut", "whore", "bastard", "cunt", "fag", "nigger", "nigga", "prick", "bullshit"
-];
-
-// Dictionary of common symbol substitutions
-const leetMap = {
-  a: '[a@4]',
-  b: '[b8]',
-  c: '[ck]',
-  e: '[e3]',
-  i: '[i1!l]',
-  o: '[o0]',
-  s: '[s\\$5]',
-  t: '[t7]'
-};
-
-const containsProfanity = (text) => {
-  if (!text) return false;
-  const lowerText = text.toLowerCase();
-  return BANNED_WORDS.some(word => {
-    let patternStr = "";
-
-    for (let char of word) {
-      if (leetMap[char]) {
-        patternStr += leetMap[char] + '+';
-      } else {
-        patternStr += char + '+';
-      }
-    }
-    const regex = new RegExp(`\\b${patternStr}\\b`, 'i');
-    return regex.test(lowerText);
-  });
-};
+// Create a custom red icon for the incident pin
+const redIcon = new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
 
 function formatAddressFromNominatim(data, fallbackLat, fallbackLng) {
   if (!data) return `${fallbackLat.toFixed(4)}, ${fallbackLng.toFixed(4)}`;
@@ -73,7 +49,6 @@ function ReportForm({ onSubmit, onCancel, preSelectedLocation, isGuest }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // FR-21: Check for inappropriate content before submitting
     if (containsProfanity(title)) {
       setErrorMsg("⚠️ Inappropriate content detected. Please revise your title.");
       return;
@@ -86,35 +61,61 @@ function ReportForm({ onSubmit, onCancel, preSelectedLocation, isGuest }) {
   return (
     <div className="form-overlay">
       <div className="form-card">
-        <h2 style={{ margin: '0 0 10px 0' }}>Report Incident</h2>
-        {isGuest && <small style={{ color: '#dc2626', display: 'block', marginBottom: '10px' }}>Reporting as Guest</small>}
 
-        <div style={{ backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '5px', marginBottom: '15px', border: '1px solid #ddd' }}>
-          <p style={{ fontSize: '0.85rem', color: '#333', margin: 0 }}>
-            <strong>📍 Location:</strong><br />
-            {address}
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#111' }}>Report Incident</h2>
+          {isGuest && <span style={{ backgroundColor: '#fee2e2', color: '#dc2626', padding: '4px 8px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 'bold' }}>GUEST</span>}
         </div>
 
-        {/* --- INLINE ERROR MESSAGE --- */}
+        {/* --- NEW: MINI-MAP LOCATION DISPLAY --- */}
+        <div className="location-display-box">
+          {preSelectedLocation ? (
+            <div style={{ height: '140px', width: '100%', backgroundColor: '#eee' }}>
+              <MapContainer
+                center={[preSelectedLocation.lat, preSelectedLocation.lng]}
+                zoom={16}
+                zoomControl={false}
+                dragging={false}
+                scrollWheelZoom={false}
+                doubleClickZoom={false}
+                touchZoom={false}
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <Marker position={[preSelectedLocation.lat, preSelectedLocation.lng]} icon={redIcon} />
+              </MapContainer>
+            </div>
+          ) : (
+            <div style={{ height: '140px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#888' }}>
+              No location selected
+            </div>
+          )}
+
+          <div className="location-address-text">
+            <strong style={{ color: '#111' }}>📍 Incident Location:</strong><br />
+            {address}
+          </div>
+        </div>
+        {/* -------------------------------------- */}
+
         {errorMsg && (
-          <div style={{ backgroundColor: '#fef2f2', color: '#dc2626', padding: '10px', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '15px', border: '1px solid #fca5a5' }}>
+          <div style={{ backgroundColor: '#fef2f2', color: '#dc2626', padding: '10px', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '15px', border: '1px solid #fca5a5', fontWeight: '500' }}>
             {errorMsg}
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">
-            <label>Title:</label>
+            <label>What happened?</label>
             <input
               type="text"
               className="form-input"
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
-                if (errorMsg) setErrorMsg(""); // Clear error when user types
+                if (errorMsg) setErrorMsg("");
               }}
-              placeholder="E.g., Broken Streetlight"
+              placeholder="E.g., Deep pothole blocking left lane"
               required
             />
           </div>
@@ -136,12 +137,13 @@ function ReportForm({ onSubmit, onCancel, preSelectedLocation, isGuest }) {
           </div>
 
           <div className="input-group">
-            <label>Photo (Optional):</label>
+            <label>Attach Evidence (Optional):</label>
             <input
               type="file"
               accept="image/*"
               onChange={(e) => setFile(e.target.files[0])}
               className="form-input"
+              style={{ padding: '6px' }}
             />
           </div>
 
