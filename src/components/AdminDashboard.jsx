@@ -1,5 +1,6 @@
 // src/components/AdminDashboard.jsx
 import { useState } from 'react';
+import AdminAnalytics from './AdminAnalytics';
 import './AdminDashboard.css';
 
 function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
@@ -193,6 +194,16 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
           >
             All reports
           </button>
+          {/* --- NEW ANALYTICS TAB --- */}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'analytics'}
+            className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
+            onClick={() => setActiveTab('analytics')}
+          >
+            Analytics
+          </button>
         </div>
 
         {activeTab === 'all' && (
@@ -212,21 +223,28 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
         )}
       </div>
 
-      {/* Dynamic Grid */}
-      <div className="report-grid-pro">
-        {reportsToDisplay.map(report => renderReportCard(report, activeTab === 'flagged'))}
-      </div>
+      {/* --- DYNAMIC CONTENT RENDERING --- */}
+      {activeTab === 'analytics' ? (
+        <AdminAnalytics reports={reports} />
+      ) : (
+        <>
+          {/* Dynamic Grid */}
+          <div className="report-grid-pro">
+            {reportsToDisplay.map(report => renderReportCard(report, activeTab === 'flagged'))}
+          </div>
 
-      {/* Empty States */}
-      {reportsToDisplay.length === 0 && (
-        <div className="admin-empty-state">
-          <h3 className="admin-empty-title">All clear</h3>
-          <p className="admin-empty-text">
-            {activeTab === 'flagged'
-              ? 'No flagged reports in this queue.'
-              : 'No reports match your current filter.'}
-          </p>
-        </div>
+          {/* Empty States */}
+          {reportsToDisplay.length === 0 && (
+            <div className="admin-empty-state">
+              <h3 className="admin-empty-title">All clear</h3>
+              <p className="admin-empty-text">
+                {activeTab === 'flagged'
+                  ? 'No flagged reports in this queue.'
+                  : 'No reports match your current filter.'}
+              </p>
+            </div>
+          )}
+        </>
       )}
 
     </div>

@@ -80,7 +80,7 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
         onClick={() => setShowHeatmap(!showHeatmap)}
         style={{
           position: 'absolute',
-          top: '140px', // Placed below your new Filter button
+          top: '80px',
           left: '20px',
           zIndex: 1000,
           backgroundColor: showHeatmap ? '#dc3545' : 'white',
