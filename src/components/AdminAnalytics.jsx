@@ -67,8 +67,8 @@ export default function AdminAnalytics({ reports }) {
             {/* CHART 1: 7-Day Trend (Line Chart) */}
             <div style={cardStyle}>
                 <h3 style={titleStyle}>📈 7-Day Incident Trend</h3>
-                <div style={{ height: '250px', width: '100%' }}>
-                    <ResponsiveContainer>
+                <div style={{ height: '250px', minHeight: '250px', width: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                             <XAxis dataKey="date" tick={{ fontSize: 12 }} />
@@ -83,8 +83,8 @@ export default function AdminAnalytics({ reports }) {
             {/* CHART 2: Category Breakdown (Donut Chart) */}
             <div style={cardStyle}>
                 <h3 style={titleStyle}>📊 Incidents by Category</h3>
-                <div style={{ height: '250px', width: '100%' }}>
-                    <ResponsiveContainer>
+                <div style={{ height: '250px', minHeight: '250px', width: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <PieChart>
                             <Pie data={categoryData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                                 {categoryData.map((entry, index) => (
@@ -101,8 +101,8 @@ export default function AdminAnalytics({ reports }) {
             {/* CHART 3: Verification Funnel (Bar Chart) */}
             <div style={cardStyle}>
                 <h3 style={titleStyle}>✅ Verification Status</h3>
-                <div style={{ height: '250px', width: '100%' }}>
-                    <ResponsiveContainer>
+                <div style={{ height: '250px', minHeight: '250px', width: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <BarChart data={statusData} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                             <XAxis type="number" allowDecimals={false} hide />

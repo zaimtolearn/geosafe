@@ -177,7 +177,7 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
                       }}
                     >
                       {report.status === "Confirmed"
-                        ? "✅ VERIFIED"
+                        ? "✅ Confirmed"
                         : "⚠️ UNCONFIRMED"}
                     </div>
 

@@ -2,18 +2,92 @@
 import { useState } from 'react';
 import AdminAnalytics from './AdminAnalytics';
 import './AdminDashboard.css';
+import { collection, addDoc } from "firebase/firestore";
+import { db } from "../firebase";
+
+// --- TEMPORARY DATABASE SEEDER ---
+const seedDatabase = async () => {
+  if (!window.confirm("⚠️ WARNING: This will inject 10 fake reports into your live database. Proceed?")) return;
+
+  const categories = ["Infrastructure", "Natural Hazard", "Traffic", "Security", "Environment"];
+  const titles = [
+    "Massive pothole in left lane", "Fallen tree blocking road", "Traffic light malfunction",
+    "Flooding after heavy rain", "Vandalized street sign", "Illegal dumping ground",
+    "Streetlights not working", "Minor car collision", "Suspicious gathering", "Broken pavement"
+  ];
+
+  const penangLocations = [
+    { lat: 5.3582, lng: 100.2965, address: "Universiti Sains Malaysia, Gelugor, Penang, 11800, Malaysia" },
+    { lat: 5.3421, lng: 100.2819, address: "Jalan Bukit Gambir, Bukit Jambul, Penang, 11950, Malaysia" },
+    { lat: 5.4141, lng: 100.3288, address: "Lebuh Chulia, George Town, Penang, 10200, Malaysia" },
+    { lat: 5.3315, lng: 100.2928, address: "Queensbay Mall Area, Bayan Lepas, Penang, 11900, Malaysia" },
+    { lat: 5.4294, lng: 100.3142, address: "Persiaran Gurney, George Town, Penang, 10250, Malaysia" },
+    { lat: 5.3833, lng: 100.3138, address: "Jalan Sultan Azlan Shah, Gelugor, Penang, 11700, Malaysia" },
+    { lat: 5.3957, lng: 100.3194, address: "Karpal Singh Drive, Jelutong, Penang, 11600, Malaysia" },
+    { lat: 5.2971, lng: 100.2582, address: "Jalan Permatang Damar Laut, Bayan Lepas, Penang, 11960, Malaysia" },
+    { lat: 5.3218, lng: 100.2823, address: "SPICE Arena Area, Bayan Baru, Penang, 11900, Malaysia" },
+    { lat: 5.4168, lng: 100.3303, address: "Lebuh Pantai (Beach Street), George Town, Penang, 10300, Malaysia" },
+    { lat: 5.3674, lng: 100.3061, address: "Jalan Masjid Negeri, Green Lane, Penang, 11600, Malaysia" },
+    { lat: 5.3096, lng: 100.2769, address: "Bayan Lepas Free Industrial Zone, Phase 3, Penang, 11900, Malaysia" }
+  ];
+
+  let successCount = 0;
+
+  for (let i = 0; i < 10; i++) {
+    const randomCat = categories[Math.floor(Math.random() * categories.length)];
+    const randomTitle = titles[Math.floor(Math.random() * titles.length)];
+    const randomLoc = penangLocations[Math.floor(Math.random() * penangLocations.length)];
+
+    const jitterLat = (Math.random() - 0.5) * 0.004;
+    const jitterLng = (Math.random() - 0.5) * 0.004;
+
+    const finalLat = randomLoc.lat + jitterLat;
+    const finalLng = randomLoc.lng + jitterLng;
+
+    const randomConfirmVotes = Math.floor(Math.random() * 20);
+    const randomDenyVotes = Math.floor(Math.random() * 5);
+    const isConfirmed = Math.random() > 0.4 ? "Confirmed" : "Unconfirmed";
+
+    const daysAgo = Math.floor(Math.random() * 30);
+    const randomDate = new Date();
+    randomDate.setDate(randomDate.getDate() - daysAgo);
+
+    try {
+      await addDoc(collection(db, "reports"), {
+        title: `${randomTitle} [SEED]`,
+        category: randomCat,
+        address: randomLoc.address,
+        location: { lat: finalLat, lng: finalLng },
+        imageUrl: null,
+        timestamp: randomDate,
+        userId: "admin_seed_script",
+        userName: "System Generated",
+        userPhoto: null,
+        confirmVotes: randomConfirmVotes,
+        denyVotes: randomDenyVotes,
+        status: isConfirmed,
+      });
+      successCount++;
+    } catch (err) {
+      console.error("Error seeding doc", err);
+    }
+  }
+  alert(`✅ Successfully seeded ${successCount} realistic reports! Refresh the page to see them.`);
+};
 
 function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ title: '', category: '', status: '' });
 
-  // Tab & Filter State
+  // --- LOGIC UPDATE: Flagged vs Regular ---
   const FLAG_THRESHOLD = 3;
-  const flaggedReports = reports.filter(r => (r.denyVotes || 0) >= FLAG_THRESHOLD);
-  const regularReports = reports.filter(r => (r.denyVotes || 0) < FLAG_THRESHOLD);
+  // Flagged: Has 3+ deny votes AND is NOT verified.
+  const flaggedReports = reports.filter(r => (r.denyVotes || 0) >= FLAG_THRESHOLD && r.status !== 'Confirmed');
+  // Regular: Everything else (including verified reports that happen to have deny votes)
+  const regularReports = reports.filter(r => !flaggedReports.includes(r));
 
   const [activeTab, setActiveTab] = useState(flaggedReports.length > 0 ? 'flagged' : 'all');
-  const [statusFilter, setStatusFilter] = useState('all'); // NEW: 'all', 'Unconfirmed', 'Confirmed'
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const handleExportCSV = () => {
     const headers = ["Report ID", "Title", "Category", "Status", "Latitude", "Longitude", "Date Submitted"];
@@ -52,10 +126,14 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
     setEditingId(null);
   };
 
-  // --- REUSABLE REPORT CARD COMPONENT ---
-  const renderReportCard = (report, isFlagged = false) => {
+  // --- REUSABLE REPORT CARD COMPONENT (NOW ACCEPTS INDEX) ---
+  const renderReportCard = (report, isFlagged = false, index) => {
     const isEditing = editingId === report.id;
     const isConfirmed = report.status === 'Confirmed';
+
+    // Format the date for the card
+    const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
+    const dateString = rDate.toLocaleDateString() + " " + rDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     return (
       <div key={report.id} className={`report-card-pro ${isFlagged ? 'flagged-card' : ''}`}>
@@ -99,15 +177,19 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
           // --- VIEW MODE ---
           <>
             <div className="card-header-pro">
-              <h3 className="card-title-pro">{report.title}</h3>
+              <h3 className="card-title-pro">
+                <span style={{ color: '#9ca3af', marginRight: '8px' }}>#{index + 1}</span>
+                {report.title}
+              </h3>
               <span className={`pill ${isConfirmed ? 'pill-status-confirmed' : 'pill-status-unconfirmed'}`}>
-                {isConfirmed ? '✅ Verified' : '⚠️ Pending'}
+                {isConfirmed ? '✅ Confirmed' : '⚠️ Pending'}
               </span>
             </div>
 
             <div className="card-meta-pro">
               <span className="pill pill-category">{report.category}</span>
               <span className="pill pill-votes">👍 {report.confirmVotes || 0} &nbsp;|&nbsp; 👎 {report.denyVotes || 0}</span>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280', marginLeft: 'auto' }}>{dateString}</span>
             </div>
           </>
         )}
@@ -146,13 +228,20 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
     );
   };
 
-  // --- FILTER LOGIC ---
-  let reportsToDisplay = activeTab === 'flagged' ? flaggedReports : regularReports;
+  // --- FILTER & SORT LOGIC ---
+  let reportsToDisplay = activeTab === 'flagged' ? [...flaggedReports] : [...regularReports];
 
   // Apply status filter ONLY if we are in the 'all' tab
   if (activeTab === 'all' && statusFilter !== 'all') {
     reportsToDisplay = reportsToDisplay.filter(r => (r.status || 'Unconfirmed') === statusFilter);
   }
+
+  // Sort by newest first
+  reportsToDisplay.sort((a, b) => {
+    const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : new Date(a.timestamp).getTime();
+    const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : new Date(b.timestamp).getTime();
+    return timeB - timeA;
+  });
 
   return (
     <div className="admin-dashboard-pro">
@@ -169,6 +258,9 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
           </button>
           <button type="button" onClick={handleExportCSV} className="btn-export-pro">
             Export CSV
+          </button>
+          <button type="button" onClick={seedDatabase} className="btn-export-pro" style={{ backgroundColor: '#8b5cf6', marginLeft: '10px' }}>
+            🧪 SEED DATA
           </button>
         </div>
       </header>
@@ -194,7 +286,6 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
           >
             All reports
           </button>
-          {/* --- NEW ANALYTICS TAB --- */}
           <button
             type="button"
             role="tab"
@@ -230,7 +321,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
         <>
           {/* Dynamic Grid */}
           <div className="report-grid-pro">
-            {reportsToDisplay.map(report => renderReportCard(report, activeTab === 'flagged'))}
+            {reportsToDisplay.map((report, index) => renderReportCard(report, activeTab === 'flagged', index))}
           </div>
 
           {/* Empty States */}

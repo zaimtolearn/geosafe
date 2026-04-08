@@ -12,7 +12,6 @@ import { getToken } from 'firebase/messaging';
 import { messaging } from './firebase';
 import * as geofire from 'geofire-common';
 import { db, auth, googleProvider, storage } from "./firebase";
-// BUGFIX: Switched back to signInWithPopup and added updateProfile
 import { signInWithPopup, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
