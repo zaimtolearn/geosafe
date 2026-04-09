@@ -99,6 +99,45 @@
   line-height: 1;
 }
 
+/* --- eview Modal & Button Styles --- */
+.btn-pro-review { 
+  background-color: #3b82f6; 
+  color: white; 
+}
+.btn-pro-review:hover { 
+  background-color: #2563eb; 
+}
+
+.admin-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 3000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.admin-modal-card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
 .btn-export-pro {
   min-height: 44px;
   padding: 0 18px;

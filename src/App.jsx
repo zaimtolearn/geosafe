@@ -368,7 +368,7 @@ function App() {
     } catch (error) { console.error("Error updating report:", error); alert("Failed to update report."); }
   };
 
-  // --- NEW: PROFILE UPDATER ---
+  // --- PROFILE UPDATER ---
   const handleUpdateProfile = async (newName) => {
     if (!user) return;
     try {
@@ -441,7 +441,6 @@ function App() {
 
       <AlertSettings isOpen={showAlertSettings} onClose={() => setShowAlertSettings(false)} currentSettings={userAlertConfig} onSave={handleSaveAlertSettings} onPickLocation={startPickingHome} />
 
-      {/* BUGFIX: Pass onUpdateProfile down to the sidebar! */}
       <Sidebar isOpen={showSidebar} onClose={() => setShowSidebar(false)} user={user} userReports={myReports} onFlyTo={handleFlyTo} onUpdateProfile={handleUpdateProfile} />
 
       <Map onMapClick={handleMapClick} reports={filteredReports} onVote={handleVote} userId={user ? user.uid : null} flyToLocation={flyToLocation} userAlertConfig={userAlertConfig} />

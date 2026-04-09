@@ -5,8 +5,21 @@ import './AdminDashboard.css';
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
+// --- NEW LEAFLET IMPORTS ---
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+const redIcon = new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
 // --- TEMPORARY DATABASE SEEDER ---
 const seedDatabase = async () => {
+  // ... [Keep your exact existing seedDatabase function here] ...
   if (!window.confirm("⚠️ WARNING: This will inject 10 fake reports into your live database. Proceed?")) return;
 
   const categories = ["Infrastructure", "Natural Hazard", "Traffic", "Security", "Environment"];
@@ -75,15 +88,16 @@ const seedDatabase = async () => {
   alert(`✅ Successfully seeded ${successCount} realistic reports! Refresh the page to see them.`);
 };
 
+
 function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ title: '', category: '', status: '' });
 
-  // --- LOGIC UPDATE: Flagged vs Regular ---
+  // --- NEW: State for the Review Modal ---
+  const [reviewingReport, setReviewingReport] = useState(null);
+
   const FLAG_THRESHOLD = 3;
-  // Flagged: Has 3+ deny votes AND is NOT verified.
   const flaggedReports = reports.filter(r => (r.denyVotes || 0) >= FLAG_THRESHOLD && r.status !== 'Confirmed');
-  // Regular: Everything else (including verified reports that happen to have deny votes)
   const regularReports = reports.filter(r => !flaggedReports.includes(r));
 
   const [activeTab, setActiveTab] = useState(flaggedReports.length > 0 ? 'flagged' : 'all');
@@ -126,12 +140,9 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
     setEditingId(null);
   };
 
-  // --- REUSABLE REPORT CARD COMPONENT (NOW ACCEPTS INDEX) ---
   const renderReportCard = (report, isFlagged = false, index) => {
     const isEditing = editingId === report.id;
     const isConfirmed = report.status === 'Confirmed';
-
-    // Format the date for the card
     const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
     const dateString = rDate.toLocaleDateString() + " " + rDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -139,23 +150,16 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
       <div key={report.id} className={`report-card-pro ${isFlagged ? 'flagged-card' : ''}`}>
 
         {isEditing ? (
-          // --- EDIT MODE ---
           <div className="edit-form-pro">
             <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#666' }}>Edit Title</label>
             <input
-              className="edit-input-pro"
-              type="text"
-              value={editData.title}
+              className="edit-input-pro" type="text" value={editData.title}
               onChange={(e) => setEditData({ ...editData, title: e.target.value })}
             />
 
             <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#666', marginTop: '5px' }}>Category & Status</label>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <select
-                className="edit-select-pro"
-                value={editData.category}
-                onChange={(e) => setEditData({ ...editData, category: e.target.value })}
-              >
+              <select className="edit-select-pro" value={editData.category} onChange={(e) => setEditData({ ...editData, category: e.target.value })}>
                 <option value="Infrastructure">Infrastructure</option>
                 <option value="Natural Hazard">Natural Hazard</option>
                 <option value="Traffic">Traffic</option>
@@ -163,18 +167,13 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
                 <option value="Environment">Environment</option>
                 <option value="Other">Other</option>
               </select>
-              <select
-                className="edit-select-pro"
-                value={editData.status}
-                onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-              >
+              <select className="edit-select-pro" value={editData.status} onChange={(e) => setEditData({ ...editData, status: e.target.value })}>
                 <option value="Unconfirmed">Unconfirmed</option>
                 <option value="Confirmed">Confirmed</option>
               </select>
             </div>
           </div>
         ) : (
-          // --- VIEW MODE ---
           <>
             <div className="card-header-pro">
               <h3 className="card-title-pro">
@@ -182,7 +181,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
                 {report.title}
               </h3>
               <span className={`pill ${isConfirmed ? 'pill-status-confirmed' : 'pill-status-unconfirmed'}`}>
-                {isConfirmed ? '✅ Confirmed' : '⚠️ Pending'}
+                {isConfirmed ? 'Confirmed' : 'Pending'}
               </span>
             </div>
 
@@ -205,7 +204,6 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
           </a>
         )}
 
-        {/* ACTIONS FOOTER */}
         <div className="card-actions-pro">
           {isEditing ? (
             <>
@@ -214,8 +212,9 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
             </>
           ) : (
             <>
+              {/* --- NEW REVIEW BUTTON --- */}
               {!isConfirmed && (
-                <button className="btn-pro btn-pro-verify" onClick={() => onVerify(report.id)}>Verify</button>
+                <button className="btn-pro btn-pro-review" onClick={() => setReviewingReport(report)}>🔍 Review</button>
               )}
               <button className="btn-pro btn-pro-edit" onClick={() => startEdit(report)}>Edit</button>
               <button className="btn-pro btn-pro-delete" onClick={() => {
@@ -228,15 +227,12 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
     );
   };
 
-  // --- FILTER & SORT LOGIC ---
   let reportsToDisplay = activeTab === 'flagged' ? [...flaggedReports] : [...regularReports];
 
-  // Apply status filter ONLY if we are in the 'all' tab
   if (activeTab === 'all' && statusFilter !== 'all') {
     reportsToDisplay = reportsToDisplay.filter(r => (r.status || 'Unconfirmed') === statusFilter);
   }
 
-  // Sort by newest first
   reportsToDisplay.sort((a, b) => {
     const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : new Date(a.timestamp).getTime();
     const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : new Date(b.timestamp).getTime();
@@ -245,6 +241,53 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
 
   return (
     <div className="admin-dashboard-pro">
+
+      {/* --- NEW REVIEW MODAL OVERLAY --- */}
+      {reviewingReport && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal-card">
+            <h2 style={{ marginTop: 0, marginBottom: '15px', color: '#1f2937' }}>Incident Review</h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px', fontSize: '0.9rem' }}>
+              <div><strong style={{ color: '#4b5563' }}>Title:</strong> {reviewingReport.title}</div>
+              <div>
+                <strong style={{ color: '#4b5563' }}>Category:</strong>
+                <span className="pill pill-category" style={{ marginLeft: '8px' }}>{reviewingReport.category}</span>
+              </div>
+              <div><strong style={{ color: '#4b5563' }}>Location:</strong> {reviewingReport.address}</div>
+            </div>
+
+            {/* INTERACTIVE MINI-MAP */}
+            <div style={{ height: '220px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #d1d5db', marginBottom: '15px' }}>
+              <MapContainer
+                center={[reviewingReport.location.lat, reviewingReport.location.lng]}
+                zoom={16}
+                style={{ height: '100%', width: '100%' }}
+              // Notice we do NOT disable dragging or scrolling here so the Admin can explore!
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <Marker position={[reviewingReport.location.lat, reviewingReport.location.lng]} icon={redIcon} />
+              </MapContainer>
+            </div>
+
+            {reviewingReport.imageUrl && (
+              <div style={{ marginBottom: '15px' }}>
+                <strong style={{ color: '#4b5563', fontSize: '0.9rem' }}>Attached Evidence:</strong><br />
+                <img src={reviewingReport.imageUrl} alt="Evidence" style={{ maxWidth: '100%', maxHeight: '150px', borderRadius: '8px', marginTop: '8px', border: '1px solid #eee' }} />
+              </div>
+            )}
+
+            <div className="admin-modal-actions">
+              <button className="btn-pro btn-pro-edit" onClick={() => setReviewingReport(null)}>Cancel</button>
+              <button className="btn-pro btn-pro-verify" onClick={() => {
+                onVerify(reviewingReport.id);
+                setReviewingReport(null);
+              }}>✅ Confirm & Verify</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --------------------------------- */}
 
       <header className="admin-header-pro">
         <div className="admin-header-title-block">
@@ -268,9 +311,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
       <div className="admin-toolbar">
         <div className="admin-tabs" role="tablist" aria-label="Report queues">
           <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'flagged'}
+            type="button" role="tab" aria-selected={activeTab === 'flagged'}
             className={`tab-btn ${activeTab === 'flagged' ? 'active-danger' : ''}`}
             onClick={() => setActiveTab('flagged')}
           >
@@ -278,18 +319,14 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
             {flaggedReports.length > 0 && <span className="badge-count">{flaggedReports.length}</span>}
           </button>
           <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'all'}
+            type="button" role="tab" aria-selected={activeTab === 'all'}
             className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => setActiveTab('all')}
           >
             All reports
           </button>
           <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'analytics'}
+            type="button" role="tab" aria-selected={activeTab === 'analytics'}
             className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
             onClick={() => setActiveTab('analytics')}
           >
@@ -301,10 +338,8 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
           <div className="admin-filter-row">
             <label className="admin-filter-label" htmlFor="admin-status-filter">Status</label>
             <select
-              id="admin-status-filter"
-              className="admin-filter-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              id="admin-status-filter" className="admin-filter-select"
+              value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="all">All statuses</option>
               <option value="Unconfirmed">Pending only</option>
@@ -314,24 +349,19 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
         )}
       </div>
 
-      {/* --- DYNAMIC CONTENT RENDERING --- */}
       {activeTab === 'analytics' ? (
         <AdminAnalytics reports={reports} />
       ) : (
         <>
-          {/* Dynamic Grid */}
           <div className="report-grid-pro">
             {reportsToDisplay.map((report, index) => renderReportCard(report, activeTab === 'flagged', index))}
           </div>
 
-          {/* Empty States */}
           {reportsToDisplay.length === 0 && (
             <div className="admin-empty-state">
               <h3 className="admin-empty-title">All clear</h3>
               <p className="admin-empty-text">
-                {activeTab === 'flagged'
-                  ? 'No flagged reports in this queue.'
-                  : 'No reports match your current filter.'}
+                {activeTab === 'flagged' ? 'No flagged reports in this queue.' : 'No reports match your current filter.'}
               </p>
             </div>
           )}
