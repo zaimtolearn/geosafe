@@ -1,11 +1,9 @@
 // src/components/AdminDashboard.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminAnalytics from './AdminAnalytics';
 import './AdminDashboard.css';
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../firebase";
-
-// --- NEW LEAFLET IMPORTS ---
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -89,13 +87,18 @@ const seedDatabase = async () => {
 };
 
 
-function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose }) {
+function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialReviewReport, clearReviewTarget }) {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ title: '', category: '', status: '' });
 
   // --- NEW: State for the Review Modal ---
   const [reviewingReport, setReviewingReport] = useState(null);
-
+  useEffect(() => {
+    if (initialReviewReport) {
+      setReviewingReport(initialReviewReport);
+      clearReviewTarget(); // Clear it so it doesn't get stuck in a loop
+    }
+  }, [initialReviewReport, clearReviewTarget]);
   const FLAG_THRESHOLD = 3;
   const flaggedReports = reports.filter(r => (r.denyVotes || 0) >= FLAG_THRESHOLD && r.status !== 'Confirmed');
   const regularReports = reports.filter(r => !flaggedReports.includes(r));

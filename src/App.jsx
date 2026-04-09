@@ -77,6 +77,7 @@ function App() {
   const [selectMode, setSelectMode] = useState(false);
   const [tempLocation, setTempLocation] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [targetReviewReport, setTargetReviewReport] = useState(null);
 
   const [activeFilters, setActiveFilters] = useState({
     categories: {
@@ -443,7 +444,19 @@ function App() {
 
       <Sidebar isOpen={showSidebar} onClose={() => setShowSidebar(false)} user={user} userReports={myReports} onFlyTo={handleFlyTo} onUpdateProfile={handleUpdateProfile} />
 
-      <Map onMapClick={handleMapClick} reports={filteredReports} onVote={handleVote} userId={user ? user.uid : null} flyToLocation={flyToLocation} userAlertConfig={userAlertConfig} />
+      <Map
+        onMapClick={handleMapClick}
+        reports={filteredReports}
+        onVote={handleVote}
+        userId={user ? user.uid : null}
+        flyToLocation={flyToLocation}
+        userAlertConfig={userAlertConfig}
+        userRole={userRole}
+        onReviewReport={(report) => {
+          setTargetReviewReport(report);
+          setShowAdmin(true);
+        }}
+      />
 
       {!selectMode && !showForm && (
         <button onClick={startReporting} style={styles.fab}>+ Report Incident</button>
@@ -460,7 +473,7 @@ function App() {
 
       {showAdmin && (
         <div style={styles.adminOverlay}>
-          <AdminDashboard reports={reports} onVerify={handleVerifyReport} onDelete={handleDeleteReport} onEdit={handleEditReport} onClose={() => setShowAdmin(false)} />
+          <AdminDashboard reports={reports} onVerify={handleVerifyReport} onDelete={handleDeleteReport} onEdit={handleEditReport} onClose={() => setShowAdmin(false)} initialReviewReport={targetReviewReport} clearReviewTarget={() => setTargetReviewReport(null)} />
         </div>
       )}
     </div>

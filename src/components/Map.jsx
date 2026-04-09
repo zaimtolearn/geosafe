@@ -69,7 +69,7 @@ function LocationPicker({ onLocationSelect }) {
   return null;
 }
 
-function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAlertConfig }) {
+function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAlertConfig, userRole, onReviewReport }) {
   const usmPosition = [5.3556, 100.3025];
 
   const [showHeatmap, setShowHeatmap] = useState(false);
@@ -219,6 +219,23 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
                     </div>
 
                     <VoteControls report={report} onVote={onVote} userId={userId} />
+
+                    {/* --- ADMIN ONLY BUTTON --- */}
+                    {userRole === 'admin' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onReviewReport(report);
+                        }}
+                        style={{
+                          backgroundColor: '#3b82f6', color: 'white', border: 'none',
+                          padding: '8px 12px', borderRadius: '6px', cursor: 'pointer',
+                          width: '100%', fontWeight: 'bold', marginTop: '12px'
+                        }}
+                      >
+                        🔍 Review in Dashboard
+                      </button>
+                    )}
                   </div>
                 </Popup>
               </Marker>
