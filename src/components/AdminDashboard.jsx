@@ -105,6 +105,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
 
   const [activeTab, setActiveTab] = useState(flaggedReports.length > 0 ? 'flagged' : 'all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleExportCSV = () => {
     const headers = ["Report ID", "Title", "Category", "Status", "Latitude", "Longitude", "Date Submitted"];
@@ -172,7 +173,8 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
               </select>
               <select className="edit-select-pro" value={editData.status} onChange={(e) => setEditData({ ...editData, status: e.target.value })}>
                 <option value="Unconfirmed">Unconfirmed</option>
-                <option value="Confirmed">Confirmed</option>
+                <option value="Verified by Community">Verified by Users</option>
+                <option value="Verified by Admin">Verified by Admin</option>
               </select>
             </div>
           </div>
@@ -183,9 +185,15 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
                 <span style={{ color: '#9ca3af', marginRight: '8px' }}>#{index + 1}</span>
                 {report.title}
               </h3>
-              <span className={`pill ${isConfirmed ? 'pill-status-confirmed' : 'pill-status-unconfirmed'}`}>
-                {isConfirmed ? 'Confirmed' : 'Pending'}
+              <span className="pill" style={{
+                backgroundColor: report.status === "Verified by Admin" ? "#d1fae5" : report.status === "Verified by Community" ? "#e0f2fe" : "#fef3c7",
+                color: report.status === "Verified by Admin" ? "#065f46" : report.status === "Verified by Community" ? "#0369a1" : "#92400e"
+              }}>
+                {report.status === "Verified by Admin" ? '✅ Admin Verified' : report.status === "Verified by Community" ? '👥 User Verified' : '⚠️ Pending'}
               </span>
+              {/* <span className={`pill ${isConfirmed ? 'pill-status-confirmed' : 'pill-status-unconfirmed'}`}>
+                {isConfirmed ? 'Confirmed' : 'Pending'}
+              </span> */}
             </div>
 
             <div className="card-meta-pro">
@@ -234,6 +242,15 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
 
   if (activeTab === 'all' && statusFilter !== 'all') {
     reportsToDisplay = reportsToDisplay.filter(r => (r.status || 'Unconfirmed') === statusFilter);
+  }
+
+  if (searchQuery.trim() !== '') {
+    const lowerQuery = searchQuery.toLowerCase();
+    reportsToDisplay = reportsToDisplay.filter(r =>
+      (r.title && r.title.toLowerCase().includes(lowerQuery)) ||
+      (r.category && r.category.toLowerCase().includes(lowerQuery)) ||
+      (r.address && r.address.toLowerCase().includes(lowerQuery))
+    );
   }
 
   reportsToDisplay.sort((a, b) => {
@@ -337,17 +354,44 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
           </button>
         </div>
 
-        {activeTab === 'all' && (
-          <div className="admin-filter-row">
-            <label className="admin-filter-label" htmlFor="admin-status-filter">Status</label>
-            <select
-              id="admin-status-filter" className="admin-filter-select"
-              value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All statuses</option>
-              <option value="Unconfirmed">Pending only</option>
-              <option value="Confirmed">Verified only</option>
-            </select>
+        {/* --- NEW: Search & Filter Row --- */}
+        {activeTab !== 'analytics' && (
+          <div className="admin-filter-row" style={{ gap: '12px', flexWrap: 'wrap' }}>
+
+            {/* Search Input */}
+            <input
+              type="text"
+              placeholder="🔍 Search titles, areas..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                padding: '0 12px',
+                minHeight: '44px',
+                borderRadius: '10px',
+                border: '1px solid #cbd5e1',
+                outline: 'none',
+                flex: '1 1 200px',
+                maxWidth: '300px',
+                fontSize: '0.9rem',
+                color: '#334155'
+              }}
+            />
+
+            {/* Status Filter (Only on 'All' tab) */}
+            {activeTab === 'all' && (
+              <>
+                <label className="admin-filter-label" htmlFor="admin-status-filter">Status</label>
+                <select
+                  id="admin-status-filter" className="admin-filter-select"
+                  value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="Unconfirmed">Pending only</option>
+                  <option value="Verified by Community">Verified by Users</option>
+                  <option value="Verified by Admin">Verified by Admin</option>
+                </select>
+              </>
+            )}
           </div>
         )}
       </div>

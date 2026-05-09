@@ -353,12 +353,21 @@ function App() {
     try {
       const voteSnap = await getDoc(voteRef);
       if (voteSnap.exists()) { alert("You have already voted on this report!"); return; }
+
+      const currentReport = reports.find(r => r.id === reportId);
+      let newStatus = currentReport.status || "Unconfirmed";
+
+      // If they are voting 'confirm', and it already has 9 votes (meaning this makes it 10)
+      if (voteType === "confirm" && (currentReport.confirmVotes || 0) >= 9 && newStatus === "Unconfirmed") {
+        newStatus = "Verified by Community";
+        // Optional: Trigger a notification here later!
+      }
       await setDoc(voteRef, { userId: user.uid, reportId: reportId, voteType: voteType, timestamp: new Date() });
       await updateDoc(reportRef, { [voteType === "confirm" ? "confirmVotes" : "denyVotes"]: increment(1) });
     } catch (error) { console.error("Error voting:", error); alert("Failed to vote."); }
   };
 
-  const handleVerifyReport = async (reportId) => { await updateDoc(doc(db, "reports", reportId), { status: "Confirmed" }); alert("Report verified!"); };
+  const handleVerifyReport = async (reportId) => { await updateDoc(doc(db, "reports", reportId), { status: "Verified by Admin" }); alert("Report verified by Admin!"); };
   const handleDeleteReport = async (reportId) => { await deleteDoc(doc(db, "reports", reportId)); };
 
   const handleEditReport = async (reportId, updatedData) => {

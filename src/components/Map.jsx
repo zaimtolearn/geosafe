@@ -154,92 +154,98 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
           <HeatmapLayer points={reports} />
         ) : (
           <>
-            {reports.map((report) => (
-              <Marker
-                key={report.id}
-                position={[report.location.lat, report.location.lng]}
-                icon={report.status === "Confirmed" ? greenIcon : blueIcon}
-              >
-                <Popup>
-                  <div style={{ minWidth: "200px" }}>
-                    {/* STATUS BADGE */}
-                    <div
-                      style={{
-                        marginBottom: "5px",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        display: "inline-block",
-                        fontSize: "0.75rem",
-                        fontWeight: "bold",
-                        backgroundColor:
-                          report.status === "Confirmed" ? "#d4edda" : "#f8d7da",
-                        color: report.status === "Confirmed" ? "#155724" : "#721c24",
-                      }}
-                    >
-                      {report.status === "Confirmed"
-                        ? "✅ Confirmed"
-                        : "⚠️ UNCONFIRMED"}
-                    </div>
-
-                    <h3 style={{ margin: "5px 0", fontSize: "1rem" }}>
-                      {report.title}
-                    </h3>
-                    <span style={{ color: "#666", fontSize: "0.85rem" }}>
-                      {report.category}
-                    </span>
-
-                    <div style={{ fontSize: "0.8rem", color: "#333", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "4px", backgroundColor: "#f8f9fa", padding: "6px", borderRadius: "4px", border: "1px solid #eee" }}>
-                      <span>📍</span>
-                      <span>
-                        {report.address
-                          ? report.address
-                          : `${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}`}
-                      </span>
-                    </div>
-
-                    {report.imageUrl && (
-                      <div style={{ marginTop: "8px" }}>
-                        <img
-                          src={report.imageUrl}
-                          alt="Evidence"
-                          style={{
-                            width: "100%",
-                            maxHeight: "120px",
-                            borderRadius: "4px",
-                            objectFit: "cover",
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    <div
-                      style={{ fontSize: "0.75rem", marginTop: "5px", color: "#888" }}
-                    >
-                      Reported by: {report.userName}
-                    </div>
-
-                    <VoteControls report={report} onVote={onVote} userId={userId} />
-
-                    {/* --- ADMIN ONLY BUTTON --- */}
-                    {userRole === 'admin' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onReviewReport(report);
-                        }}
+            {reports.map((report) => {
+              const isVerified = report.status === "Verified by Community" || report.status === "Verified by Admin";
+              return (
+                <Marker
+                  key={report.id}
+                  position={[report.location.lat, report.location.lng]}
+                  icon={isVerified ? greenIcon : blueIcon}
+                >
+                  <Popup>
+                    <div style={{ minWidth: "200px" }}>
+                      {/* STATUS BADGE */}
+                      <div
                         style={{
-                          backgroundColor: '#3b82f6', color: 'white', border: 'none',
-                          padding: '8px 12px', borderRadius: '6px', cursor: 'pointer',
-                          width: '100%', fontWeight: 'bold', marginTop: '12px'
+                          marginBottom: "5px",
+                          padding: "4px 8px",
+                          borderRadius: "4px",
+                          display: "inline-block",
+                          fontSize: "0.75rem",
+                          fontWeight: "bold",
+                          backgroundColor:
+                            report.status === "Verified by Admin" ? "#d4edda" :
+                              report.status === "Verified by Community" ? "#cce5ff" : "#f8d7da",
+                          color:
+                            report.status === "Verified by Admin" ? "#155724" :
+                              report.status === "Verified by Community" ? "#004085" : "#721c24",
                         }}
                       >
-                        🔍 Review in Dashboard
-                      </button>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                        {report.status === "Verified by Admin" ? "✅ Verified by Admin" :
+                          report.status === "Verified by Community" ? "👥 Verified by Users" :
+                            "⚠️ UNCONFIRMED"}
+                      </div>
+
+                      <h3 style={{ margin: "5px 0", fontSize: "1rem" }}>
+                        {report.title}
+                      </h3>
+                      <span style={{ color: "#666", fontSize: "0.85rem" }}>
+                        {report.category}
+                      </span>
+
+                      <div style={{ fontSize: "0.8rem", color: "#333", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "4px", backgroundColor: "#f8f9fa", padding: "6px", borderRadius: "4px", border: "1px solid #eee" }}>
+                        <span>📍</span>
+                        <span>
+                          {report.address
+                            ? report.address
+                            : `${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}`}
+                        </span>
+                      </div>
+
+                      {report.imageUrl && (
+                        <div style={{ marginTop: "8px" }}>
+                          <img
+                            src={report.imageUrl}
+                            alt="Evidence"
+                            style={{
+                              width: "100%",
+                              maxHeight: "120px",
+                              borderRadius: "4px",
+                              objectFit: "cover",
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      <div
+                        style={{ fontSize: "0.75rem", marginTop: "5px", color: "#888" }}
+                      >
+                        Reported by: {report.userName}
+                      </div>
+
+                      <VoteControls report={report} onVote={onVote} userId={userId} />
+
+                      {/* --- ADMIN ONLY BUTTON --- */}
+                      {userRole === 'admin' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onReviewReport(report);
+                          }}
+                          style={{
+                            backgroundColor: '#3b82f6', color: 'white', border: 'none',
+                            padding: '8px 12px', borderRadius: '6px', cursor: 'pointer',
+                            width: '100%', fontWeight: 'bold', marginTop: '12px'
+                          }}
+                        >
+                          🔍 Review in Dashboard
+                        </button>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
 
             <Marker position={usmPosition} icon={blueIcon}>
               <Popup>GeoSafe HQ</Popup>
