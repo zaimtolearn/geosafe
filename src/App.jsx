@@ -84,7 +84,11 @@ function App() {
       "Infrastructure": true, "Natural Hazard": true, "Traffic": true,
       "Security": true, "Environment": true, "Other": true
     },
-    statuses: { Confirmed: true, Unconfirmed: true },
+    statuses: {
+      "Verified by Admin": true,
+      "Verified by Community": true,
+      "Unconfirmed": true
+    },
     timeRange: "7d"
   });
 
@@ -278,7 +282,10 @@ function App() {
 
   const filteredReports = reports.filter((report) => {
     const categoryMatch = activeFilters.categories[report.category] === true;
-    const currentStatus = report.status || "Unconfirmed";
+    let currentStatus = report.status || "Unconfirmed";
+    if (currentStatus === "Confirmed") {
+      currentStatus = "Verified by Admin";
+    }
     const statusMatch = activeFilters.statuses[currentStatus] === true;
     let timeMatch = true;
     if (activeFilters.timeRange !== 'all' && report.timestamp) {

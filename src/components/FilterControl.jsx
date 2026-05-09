@@ -16,8 +16,9 @@ function FilterControl({ onFilterApply }) {
 
   // 2. Status (Multi-select)
   const [statuses, setStatuses] = useState({
-    Confirmed: true,
-    Unconfirmed: true
+    "Verified by Admin": true,
+    "Verified by Community": true,
+    "Unconfirmed": true
   });
 
   // 3. Time Range (Single-select)

@@ -40,6 +40,16 @@ const greenIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+// Gold Marker (Verified by Community)
+const goldIcon = new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
 const homeIcon = new L.divIcon({
   html: '<div style="font-size: 28px; text-shadow: 0px 2px 5px rgba(0,0,0,0.5);">🏠</div>',
   className: 'custom-home-icon',
@@ -155,12 +165,19 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
         ) : (
           <>
             {reports.map((report) => {
-              const isVerified = report.status === "Verified by Community" || report.status === "Verified by Admin";
+              // Handle Legacy Data
+              const actualStatus = report.status === "Confirmed" ? "Verified by Admin" : (report.status || "Unconfirmed");
+
+              // Pick the right color
+              let currentIcon = blueIcon;
+              if (actualStatus === "Verified by Admin") currentIcon = greenIcon;
+              else if (actualStatus === "Verified by Community") currentIcon = goldIcon;
+
               return (
                 <Marker
                   key={report.id}
                   position={[report.location.lat, report.location.lng]}
-                  icon={isVerified ? greenIcon : blueIcon}
+                  icon={currentIcon}
                 >
                   <Popup>
                     <div style={{ minWidth: "200px" }}>
