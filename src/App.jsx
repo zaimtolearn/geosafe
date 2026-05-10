@@ -116,10 +116,27 @@ function App() {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const fetchedReports = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const fetchedReports = snapshot.docs.map((doc) => {
+          const data = doc.data();
+
+          // --- MASTER DATA NORMALIZER ---
+          let cleanStatus = data.status || "Unconfirmed";
+
+          // 1. Fix Legacy "Confirmed" data
+          if (cleanStatus === "Confirmed") {
+            cleanStatus = "Verified by Admin";
+          }
+          // 2. Force 10-vote auto-verify for old reports
+          else if (cleanStatus === "Unconfirmed" && (data.confirmVotes || 0) >= 10) {
+            cleanStatus = "Verified by Community";
+          }
+
+          return {
+            id: doc.id,
+            ...data,
+            status: cleanStatus // Inject the clean status to the rest of the app!
+          };
+        });
         setReports(fetchedReports);
 
         const notify = !isFirstSnapshot.current;
@@ -282,11 +299,7 @@ function App() {
 
   const filteredReports = reports.filter((report) => {
     const categoryMatch = activeFilters.categories[report.category] === true;
-    let currentStatus = report.status || "Unconfirmed";
-    if (currentStatus === "Confirmed") {
-      currentStatus = "Verified by Admin";
-    }
-    const statusMatch = activeFilters.statuses[currentStatus] === true;
+    const statusMatch = activeFilters.statuses[report.status] === true;
     let timeMatch = true;
     if (activeFilters.timeRange !== 'all' && report.timestamp) {
       const reportDate = report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp);

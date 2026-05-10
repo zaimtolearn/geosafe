@@ -165,14 +165,10 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
         ) : (
           <>
             {reports.map((report) => {
-              // Handle Legacy Data
-              const actualStatus = report.status === "Confirmed" ? "Verified by Admin" : (report.status || "Unconfirmed");
-
-              // Pick the right color
+              // 1. Assign the right color pin
               let currentIcon = blueIcon;
-              if (actualStatus === "Verified by Admin") currentIcon = greenIcon;
-              else if (actualStatus === "Verified by Community") currentIcon = goldIcon;
-
+              if (report.status === "Verified by Admin") currentIcon = greenIcon;
+              else if (report.status === "Verified by Community") currentIcon = goldIcon;
               return (
                 <Marker
                   key={report.id}
@@ -192,10 +188,10 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
                           fontWeight: "bold",
                           backgroundColor:
                             report.status === "Verified by Admin" ? "#d4edda" :
-                              report.status === "Verified by Community" ? "#cce5ff" : "#f8d7da",
+                              report.status === "Verified by Community" ? "#fef08a" : "#f8d7da",
                           color:
                             report.status === "Verified by Admin" ? "#155724" :
-                              report.status === "Verified by Community" ? "#004085" : "#721c24",
+                              report.status === "Verified by Community" ? "#854d0e" : "#721c24",
                         }}
                       >
                         {report.status === "Verified by Admin" ? "✅ Verified by Admin" :

@@ -100,7 +100,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
     }
   }, [initialReviewReport, clearReviewTarget]);
   const FLAG_THRESHOLD = 3;
-  const flaggedReports = reports.filter(r => (r.denyVotes || 0) >= FLAG_THRESHOLD && r.status !== 'Confirmed');
+  const flaggedReports = reports.filter(r => (r.denyVotes || 0) >= FLAG_THRESHOLD && r.status == 'Unconfirmed');
   const regularReports = reports.filter(r => !flaggedReports.includes(r));
 
   const [activeTab, setActiveTab] = useState(flaggedReports.length > 0 ? 'flagged' : 'all');
@@ -186,14 +186,11 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
                 {report.title}
               </h3>
               <span className="pill" style={{
-                backgroundColor: report.status === "Verified by Admin" ? "#d1fae5" : report.status === "Verified by Community" ? "#e0f2fe" : "#fef3c7",
-                color: report.status === "Verified by Admin" ? "#065f46" : report.status === "Verified by Community" ? "#0369a1" : "#92400e"
+                backgroundColor: report.status === "Verified by Admin" ? "#d1fae5" : report.status === "Verified by Community" ? "#fef08a" : "#fef3c7",
+                color: report.status === "Verified by Admin" ? "#065f46" : report.status === "Verified by Community" ? "#854d0e" : "#92400e"
               }}>
                 {report.status === "Verified by Admin" ? '✅ Admin Verified' : report.status === "Verified by Community" ? '👥 User Verified' : '⚠️ Pending'}
               </span>
-              {/* <span className={`pill ${isConfirmed ? 'pill-status-confirmed' : 'pill-status-unconfirmed'}`}>
-                {isConfirmed ? 'Confirmed' : 'Pending'}
-              </span> */}
             </div>
 
             <div className="card-meta-pro">

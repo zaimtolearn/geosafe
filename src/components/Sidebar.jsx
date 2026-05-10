@@ -87,31 +87,53 @@ function Sidebar({ isOpen, onClose, user, userReports, onFlyTo, onUpdateProfile 
                   <p style={{ margin: 0 }}>You haven't reported anything yet.</p>
                 </div>
               ) : (
-                userReports.map(report => (
-                  <div
-                    key={report.id}
-                    style={styles.card}
-                    onClick={() => onFlyTo(report.location)}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                      <strong style={{ color: '#1f2937', fontSize: '0.95rem', lineHeight: '1.2' }}>{report.title}</strong>
-                      <span style={{
-                        fontSize: '0.7rem', padding: '3px 8px', borderRadius: '12px', fontWeight: 'bold',
-                        backgroundColor: report.status === 'Confirmed' ? '#d1fae5' : '#fef3c7',
-                        color: report.status === 'Confirmed' ? '#065f46' : '#92400e'
-                      }}>
-                        {report.status || 'Pending'}
-                      </span>
+                userReports.map(report => {
+                  // --- NEW: Safe Date Parsing ---
+                  const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
+
+                  // --- NEW: Dynamic Status Badges ---
+                  let bgColor = '#fef3c7';
+                  let textColor = '#92400e';
+                  let statusText = '⚠️ Unconfirmed';
+
+                  if (report.status === 'Verified by Admin') {
+                    bgColor = '#d1fae5';
+                    textColor = '#065f46';
+                    statusText = '✅ Admin Verified';
+                  } else if (report.status === 'Verified by Community') {
+                    bgColor = '#fef08a';
+                    textColor = '#854d0e';
+                    statusText = '👥 User Verified';
+                  }
+
+                  return (
+                    <div
+                      key={report.id}
+                      style={styles.card}
+                      onClick={() => onFlyTo(report.location)}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <strong style={{ color: '#1f2937', fontSize: '0.95rem', lineHeight: '1.2', flex: 1, paddingRight: '10px' }}>{report.title}</strong>
+
+                        {/* Updated Status Pill */}
+                        <span style={{
+                          fontSize: '0.7rem', padding: '4px 8px', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap',
+                          backgroundColor: bgColor,
+                          color: textColor
+                        }}>
+                          {statusText}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>📍</span> {report.category}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#9ca3af', borderTop: '1px solid #f3f4f6', paddingTop: '8px' }}>
+                        <span>{rDate.toLocaleDateString()}</span>
+                        <span>👍 {report.confirmVotes || 0} &nbsp;|&nbsp; 👎 {report.denyVotes || 0}</span>
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>📍</span> {report.category}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#9ca3af', borderTop: '1px solid #f3f4f6', paddingTop: '8px' }}>
-                      <span>{new Date(report.timestamp.seconds * 1000).toLocaleDateString()}</span>
-                      <span>👍 {report.confirmVotes || 0} &nbsp;|&nbsp; 👎 {report.denyVotes || 0}</span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </>
