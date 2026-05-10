@@ -87,9 +87,11 @@ const seedDatabase = async () => {
 };
 
 
-function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialReviewReport, clearReviewTarget }) {
+function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialReviewReport, clearReviewTarget, categoryTTLs, onUpdateTTLs }) {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ title: '', category: '', status: '' });
+  const [localTTLs, setLocalTTLs] = useState(categoryTTLs || {});
+  useEffect(() => { setLocalTTLs(categoryTTLs || {}); }, [categoryTTLs]);
 
   // --- NEW: State for the Review Modal ---
   const [reviewingReport, setReviewingReport] = useState(null);
@@ -349,6 +351,13 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
           >
             Analytics
           </button>
+          <button
+            type="button" role="tab" aria-selected={activeTab === 'settings'}
+            className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            ⚙️ Settings
+          </button>
         </div>
 
         {/* --- NEW: Search & Filter Row --- */}
@@ -394,6 +403,64 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
       </div>
 
       {activeTab === 'analytics' ? (
+        <AdminAnalytics reports={reports} />
+      ) : (
+        <>
+          <div className="report-grid-pro">
+            {reportsToDisplay.map((report, index) => renderReportCard(report, activeTab === 'flagged', index))}
+          </div>
+
+          {reportsToDisplay.length === 0 && (
+            <div className="admin-empty-state">
+              <h3 className="admin-empty-title">All clear</h3>
+              <p className="admin-empty-text">
+                {activeTab === 'flagged' ? 'No flagged reports in this queue.' : 'No reports match your current filter.'}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* --- DYNAMIC CONTENT RENDERING --- */}
+      {activeTab === 'settings' ? (
+        <div className="report-card-pro" style={{ padding: '30px', maxWidth: '600px', margin: '20px auto' }}>
+          <h2 style={{ marginTop: 0, color: '#1f2937' }}>Map Expiry Timers (Time-To-Live)</h2>
+          <p style={{ color: '#6b7280', marginBottom: '25px', fontSize: '0.9rem', lineHeight: '1.5' }}>
+            Set how long a report stays visible on the public map based on its category.
+            Once a report exceeds this age, it will automatically disappear from the map to keep it uncluttered, but it will remain in this Admin Dashboard for historical records.
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {Object.keys(localTTLs).map((category) => (
+              <div key={category} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f3f4f6' }}>
+                <strong style={{ width: '150px', color: '#374151' }}>{category}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input
+                    type="number"
+                    min="1"
+                    className="edit-input-pro"
+                    style={{ width: '90px', textAlign: 'center' }}
+                    value={localTTLs[category]}
+                    onChange={(e) => setLocalTTLs({ ...localTTLs, [category]: Number(e.target.value) })}
+                  />
+                  <span style={{ color: '#6b7280', fontSize: '0.85rem', width: '100px' }}>
+                    hours <br />
+                    <small style={{ color: '#9ca3af' }}>({(localTTLs[category] / 24).toFixed(1)} days)</small>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            className="btn-pro btn-pro-verify"
+            style={{ width: '100%', marginTop: '25px', padding: '12px', fontSize: '1rem' }}
+            onClick={() => onUpdateTTLs(localTTLs)}
+          >
+            💾 Save Timers to Database
+          </button>
+        </div>
+      ) : activeTab === 'analytics' ? (
         <AdminAnalytics reports={reports} />
       ) : (
         <>

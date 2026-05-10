@@ -92,6 +92,39 @@ function App() {
     timeRange: "7d"
   });
 
+  // CATEGORY EXPIRY TIMERS (Time-To-Live in Hours)
+  const [categoryTTLs, setCategoryTTLs] = useState({
+    "Traffic": 24,          // 1 Day
+    "Security": 48,         // 2 Days
+    "Natural Hazard": 72,   // 3 Days
+    "Environment": 168,     // 1 Week
+    "Other": 720,           // 30 Days
+    "Infrastructure": 8760  // 1 Year
+  });
+
+  // Fetch saved timers from Firebase on load
+  useEffect(() => {
+    const fetchTimers = async () => {
+      try {
+        const docRef = doc(db, "settings", "global");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists() && docSnap.data().categoryTTLs) {
+          setCategoryTTLs(docSnap.data().categoryTTLs);
+        } else {
+          // Initialize in database if it doesn't exist yet
+          await setDoc(docRef, { categoryTTLs }, { merge: true });
+        }
+      } catch (err) { console.error("Could not load timers:", err); }
+    };
+    fetchTimers();
+  }, []);
+
+  const handleUpdateTTLs = async (newTTLs) => {
+    setCategoryTTLs(newTTLs);
+    await setDoc(doc(db, "settings", "global"), { categoryTTLs: newTTLs }, { merge: true });
+    alert("Map Expiry Timers updated successfully!");
+  };
+
   const requestNotificationPermission = async (uid, location) => {
     try {
       const permission = await Notification.requestPermission();
@@ -300,6 +333,19 @@ function App() {
   const filteredReports = reports.filter((report) => {
     const categoryMatch = activeFilters.categories[report.category] === true;
     const statusMatch = activeFilters.statuses[report.status] === true;
+    // Check if the report has expired based on its category
+    let isNotExpired = true;
+    if (report.timestamp) {
+      const reportDate = report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
+      const hoursAlive = (new Date() - reportDate) / (1000 * 60 * 60);
+
+      // Look up the max hours for this category (default to 30 days if somehow missing)
+      const maxHoursAllowed = categoryTTLs[report.category] || 720;
+
+      if (hoursAlive > maxHoursAllowed) {
+        isNotExpired = false; // It's too old! Hide it from the map.
+      }
+    }
     let timeMatch = true;
     if (activeFilters.timeRange !== 'all' && report.timestamp) {
       const reportDate = report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
@@ -308,7 +354,7 @@ function App() {
       if (activeFilters.timeRange === '24h') timeMatch = hoursDiff <= 24;
       else if (activeFilters.timeRange === '7d') timeMatch = hoursDiff <= (24 * 7);
     }
-    return categoryMatch && statusMatch && timeMatch;
+    return categoryMatch && statusMatch && timeMatch && isNotExpired;
   });
 
   const handleFilterApply = (newFilters) => setActiveFilters(newFilters);
@@ -502,7 +548,7 @@ function App() {
 
       {showAdmin && (
         <div style={styles.adminOverlay}>
-          <AdminDashboard reports={reports} onVerify={handleVerifyReport} onDelete={handleDeleteReport} onEdit={handleEditReport} onClose={() => setShowAdmin(false)} initialReviewReport={targetReviewReport} clearReviewTarget={() => setTargetReviewReport(null)} />
+          <AdminDashboard reports={reports} onVerify={handleVerifyReport} onDelete={handleDeleteReport} onEdit={handleEditReport} onClose={() => setShowAdmin(false)} initialReviewReport={targetReviewReport} clearReviewTarget={() => setTargetReviewReport(null)} categoryTTLs={categoryTTLs} onUpdateTTLs={handleUpdateTTLs} />
         </div>
       )}
     </div>
