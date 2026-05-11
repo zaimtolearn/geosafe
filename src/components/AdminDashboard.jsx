@@ -17,7 +17,6 @@ const redIcon = new L.Icon({
 
 // --- TEMPORARY DATABASE SEEDER ---
 const seedDatabase = async () => {
-  // ... [Keep your exact existing seedDatabase function here] ...
   if (!window.confirm("⚠️ WARNING: This will inject 10 fake reports into your live database. Proceed?")) return;
 
   const categories = ["Infrastructure", "Natural Hazard", "Traffic", "Security", "Environment"];
@@ -86,21 +85,23 @@ const seedDatabase = async () => {
   alert(`✅ Successfully seeded ${successCount} realistic reports! Refresh the page to see them.`);
 };
 
-
+// --- ADDED MISSING PROPS HERE ---
 function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialReviewReport, clearReviewTarget, categoryTTLs, onUpdateTTLs }) {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ title: '', category: '', status: '' });
+
   const [localTTLs, setLocalTTLs] = useState(categoryTTLs || {});
   useEffect(() => { setLocalTTLs(categoryTTLs || {}); }, [categoryTTLs]);
 
-  // --- NEW: State for the Review Modal ---
+  // --- State for the Review Modal ---
   const [reviewingReport, setReviewingReport] = useState(null);
   useEffect(() => {
     if (initialReviewReport) {
       setReviewingReport(initialReviewReport);
-      clearReviewTarget(); // Clear it so it doesn't get stuck in a loop
+      clearReviewTarget();
     }
   }, [initialReviewReport, clearReviewTarget]);
+
   const FLAG_THRESHOLD = 3;
   const flaggedReports = reports.filter(r => (r.denyVotes || 0) >= FLAG_THRESHOLD && r.status == 'Unconfirmed');
   const regularReports = reports.filter(r => !flaggedReports.includes(r));
@@ -148,7 +149,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
 
   const renderReportCard = (report, isFlagged = false, index) => {
     const isEditing = editingId === report.id;
-    const isConfirmed = report.status === 'Confirmed';
+    const isConfirmed = report.status === 'Confirmed' || report.status === 'Verified by Admin';
     const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
     const dateString = rDate.toLocaleDateString() + " " + rDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -222,8 +223,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
             </>
           ) : (
             <>
-              {/* --- NEW REVIEW BUTTON --- */}
-              {!isConfirmed && (
+              {report.status === "Unconfirmed" && (
                 <button className="btn-pro btn-pro-review" onClick={() => setReviewingReport(report)}>🔍 Review</button>
               )}
               <button className="btn-pro btn-pro-edit" onClick={() => startEdit(report)}>Edit</button>
@@ -261,7 +261,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
   return (
     <div className="admin-dashboard-pro">
 
-      {/* --- NEW REVIEW MODAL OVERLAY --- */}
+      {/* --- REVIEW MODAL OVERLAY --- */}
       {reviewingReport && (
         <div className="admin-modal-overlay">
           <div className="admin-modal-card">
@@ -282,7 +282,6 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
                 center={[reviewingReport.location.lat, reviewingReport.location.lng]}
                 zoom={16}
                 style={{ height: '100%', width: '100%' }}
-              // Notice we do NOT disable dragging or scrolling here so the Admin can explore!
               >
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <Marker position={[reviewingReport.location.lat, reviewingReport.location.lng]} icon={redIcon} />
@@ -306,7 +305,6 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
           </div>
         </div>
       )}
-      {/* --------------------------------- */}
 
       <header className="admin-header-pro">
         <div className="admin-header-title-block">
@@ -360,11 +358,8 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
           </button>
         </div>
 
-        {/* --- NEW: Search & Filter Row --- */}
-        {activeTab !== 'analytics' && (
+        {activeTab !== 'analytics' && activeTab !== 'settings' && (
           <div className="admin-filter-row" style={{ gap: '12px', flexWrap: 'wrap' }}>
-
-            {/* Search Input */}
             <input
               type="text"
               placeholder="🔍 Search titles, areas..."
@@ -383,7 +378,6 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
               }}
             />
 
-            {/* Status Filter (Only on 'All' tab) */}
             {activeTab === 'all' && (
               <>
                 <label className="admin-filter-label" htmlFor="admin-status-filter">Status</label>
@@ -401,25 +395,6 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
           </div>
         )}
       </div>
-
-      {activeTab === 'analytics' ? (
-        <AdminAnalytics reports={reports} />
-      ) : (
-        <>
-          <div className="report-grid-pro">
-            {reportsToDisplay.map((report, index) => renderReportCard(report, activeTab === 'flagged', index))}
-          </div>
-
-          {reportsToDisplay.length === 0 && (
-            <div className="admin-empty-state">
-              <h3 className="admin-empty-title">All clear</h3>
-              <p className="admin-empty-text">
-                {activeTab === 'flagged' ? 'No flagged reports in this queue.' : 'No reports match your current filter.'}
-              </p>
-            </div>
-          )}
-        </>
-      )}
 
       {/* --- DYNAMIC CONTENT RENDERING --- */}
       {activeTab === 'settings' ? (
