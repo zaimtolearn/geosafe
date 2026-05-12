@@ -5,22 +5,21 @@ import {
     PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend
 } from 'recharts';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b'];
+const COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#64748b'];
 
 export default function AdminAnalytics({ reports }) {
 
     // --- DATA PROCESSING ENGINE ---
-    const { categoryData, trendData, statusData } = useMemo(() => {
-        if (!reports.length) return { categoryData: [], trendData: [], statusData: [] };
+    const { kpis, categoryData, trendData, statusData } = useMemo(() => {
+        if (!reports.length) return { kpis: null, categoryData: [], trendData: [], statusData: [] };
 
-        // 1. Category Distribution
         const catMap = {};
-        // 2. Status Breakdown
-        const statMap = { Confirmed: 0, Unconfirmed: 0 };
-        // 3. 7-Day Trend
+        const statMap = { "Unconfirmed": 0, "Verified by Community": 0, "Verified by Admin": 0 };
         const trendMap = {};
+        let totalUpvotes = 0;
+        let totalDownvotes = 0;
 
-        // Initialize last 7 days for the trend chart so empty days show as 0
+        // Initialize last 7 days for the trend chart
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
@@ -29,109 +28,194 @@ export default function AdminAnalytics({ reports }) {
         }
 
         reports.forEach(report => {
-            // Tally Categories
+            // Normalize Status
+            let status = report.status || "Unconfirmed";
+            if (status === "Confirmed") status = "Verified by Admin"; // Handle legacy
+
+            // Tally
             catMap[report.category] = (catMap[report.category] || 0) + 1;
+            if (statMap[status] !== undefined) statMap[status]++;
 
-            // Tally Statuses
-            const status = report.status === "Confirmed" ? "Confirmed" : "Unconfirmed";
-            statMap[status]++;
+            totalUpvotes += (report.confirmVotes || 0);
+            totalDownvotes += (report.denyVotes || 0);
 
-            // Tally Dates for Trend
+            // Trend
             if (report.timestamp) {
                 const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
                 const dateStr = rDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                if (trendMap[dateStr] !== undefined) {
-                    trendMap[dateStr]++;
-                }
+                if (trendMap[dateStr] !== undefined) trendMap[dateStr]++;
             }
         });
 
+        // Calculate KPIs
+        const totalVerified = statMap["Verified by Community"] + statMap["Verified by Admin"];
+        const verificationRate = Math.round((totalVerified / reports.length) * 100) || 0;
+
+        let topCategory = "None";
+        let maxCatCount = 0;
+        Object.entries(catMap).forEach(([cat, count]) => {
+            if (count > maxCatCount) { maxCatCount = count; topCategory = cat; }
+        });
+
+        const trustScore = totalUpvotes + totalDownvotes === 0 ? 100 : Math.round((totalUpvotes / (totalUpvotes + totalDownvotes)) * 100);
+
+        const kpis = {
+            totalReports: reports.length,
+            verificationRate: verificationRate,
+            topCategory: topCategory,
+            trustScore: trustScore
+        };
+
         // Format for Recharts
-        const formattedCategories = Object.keys(catMap).map(key => ({ name: key, value: catMap[key] }));
+        const formattedCategories = Object.keys(catMap).map(key => ({ name: key, value: catMap[key] })).sort((a, b) => b.value - a.value);
         const formattedTrends = Object.keys(trendMap).map(key => ({ date: key, Reports: trendMap[key] }));
         const formattedStatus = [
-            { name: 'Pending (Unconfirmed)', count: statMap.Unconfirmed, fill: '#f59e0b' },
-            { name: 'Verified (Confirmed)', count: statMap.Confirmed, fill: '#10b981' }
+            { name: 'Pending', count: statMap["Unconfirmed"], fill: '#f87171' },
+            { name: 'User Verified', count: statMap["Verified by Community"], fill: '#fbbf24' },
+            { name: 'Admin Verified', count: statMap["Verified by Admin"], fill: '#34d399' }
         ];
 
-        return { categoryData: formattedCategories, trendData: formattedTrends, statusData: formattedStatus };
+        return { kpis, categoryData: formattedCategories, trendData: formattedTrends, statusData: formattedStatus };
     }, [reports]);
 
-    if (reports.length === 0) {
+    if (!kpis) {
         return <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Not enough data to generate analytics.</div>;
     }
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '20px' }}>
+        <div style={{ paddingBottom: '20px' }}>
 
-            {/* CHART 1: 7-Day Trend (Line Chart) */}
-            <div style={cardStyle}>
-                <h3 style={titleStyle}>📈 7-Day Incident Trend</h3>
-                <div style={{ height: '250px', minHeight: '250px', width: '100%' }}>
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                        <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                            <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
-                            <Line type="monotone" dataKey="Reports" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                        </LineChart>
-                    </ResponsiveContainer>
+            {/* --- TOP ROW: KPI CARDS --- */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                <div style={kpiCardStyle}>
+                    <div style={kpiLabelStyle}>Total Incidents</div>
+                    <div style={kpiValueStyle}>{kpis.totalReports}</div>
+                    <div style={kpiSubStyle}>System lifetime</div>
+                </div>
+                <div style={kpiCardStyle}>
+                    <div style={kpiLabelStyle}>Verification Rate</div>
+                    <div style={kpiValueStyle}>{kpis.verificationRate}%</div>
+                    <div style={kpiSubStyle}>Community + Admin</div>
+                </div>
+                <div style={kpiCardStyle}>
+                    <div style={kpiLabelStyle}>Primary Threat</div>
+                    <div style={kpiValueStyle}>{kpis.topCategory}</div>
+                    <div style={kpiSubStyle}>Highest volume category</div>
+                </div>
+                <div style={kpiCardStyle}>
+                    <div style={kpiLabelStyle}>Community Trust</div>
+                    <div style={kpiValueStyle}>{kpis.trustScore}%</div>
+                    <div style={kpiSubStyle}>Upvotes vs Downvotes</div>
                 </div>
             </div>
 
-            {/* CHART 2: Category Breakdown (Donut Chart) */}
-            <div style={cardStyle}>
-                <h3 style={titleStyle}>📊 Incidents by Category</h3>
-                <div style={{ height: '250px', minHeight: '250px', width: '100%' }}>
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                        <PieChart>
-                            <Pie data={categoryData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                {categoryData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
-                            <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
+            {/* --- CHARTS GRID --- */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
 
-            {/* CHART 3: Verification Funnel (Bar Chart) */}
-            <div style={cardStyle}>
-                <h3 style={titleStyle}>✅ Verification Status</h3>
-                <div style={{ height: '250px', minHeight: '250px', width: '100%' }}>
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                        <BarChart data={statusData} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                            <XAxis type="number" allowDecimals={false} hide />
-                            <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={120} />
-                            <Tooltip cursor={{ fill: '#f8f9fa' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
-                            <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={40}>
-                                {statusData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
+                {/* CHART 1: 7-Day Trend */}
+                <div style={chartCardStyle}>
+                    <h3 style={titleStyle}>📈 7-Day Threat Velocity</h3>
+                    <div style={{ height: '280px', width: '100%', minWidth: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} />
+                                <YAxis tick={{ fontSize: 12, fill: '#64748b' }} allowDecimals={false} tickLine={false} axisLine={false} />
+                                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                                <Line type="monotone" dataKey="Reports" stroke="#3b82f6" strokeWidth={4} dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: 'white' }} activeDot={{ r: 7 }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
-            </div>
 
+                {/* CHART 2: Verification Funnel */}
+                <div style={chartCardStyle}>
+                    <h3 style={titleStyle}>🛡️ Resolution Pipeline</h3>
+                    <div style={{ height: '280px', width: '100%', minWidth: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={statusData} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                <XAxis type="number" allowDecimals={false} hide />
+                                <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: '#475569', fontWeight: 600 }} width={100} axisLine={false} tickLine={false} />
+                                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                                <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={35}>
+                                    {statusData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* CHART 3: Category Breakdown */}
+                <div style={chartCardStyle}>
+                    <h3 style={titleStyle}>🎯 Threat Distribution</h3>
+                    <div style={{ height: '280px', width: '100%', minWidth: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={categoryData} innerRadius={70} outerRadius={95} paddingAngle={4} dataKey="value">
+                                    {categoryData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                                <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#475569' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+            </div>
         </div>
     );
 }
 
-const cardStyle = {
+// --- STYLING ---
+const kpiCardStyle = {
     backgroundColor: 'white',
     padding: '20px',
-    borderRadius: '12px',
-    border: '1px solid #e5e7eb',
+    borderRadius: '16px',
+    border: '1px solid #f1f5f9',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center'
+};
+
+const kpiLabelStyle = {
+    fontSize: '0.85rem',
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: '8px'
+};
+
+const kpiValueStyle = {
+    fontSize: '2.5rem',
+    fontWeight: '800',
+    color: '#0f172a',
+    lineHeight: '1',
+    marginBottom: '8px'
+};
+
+const kpiSubStyle = {
+    fontSize: '0.8rem',
+    color: '#94a3b8'
+};
+
+const chartCardStyle = {
+    backgroundColor: 'white',
+    padding: '24px',
+    borderRadius: '16px',
+    border: '1px solid #f1f5f9',
     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
 };
 
 const titleStyle = {
     margin: '0 0 20px 0',
-    fontSize: '1.1rem',
-    color: '#1f2937',
+    fontSize: '1.15rem',
+    fontWeight: '700',
+    color: '#1e293b',
 };

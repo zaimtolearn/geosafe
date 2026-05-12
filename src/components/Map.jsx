@@ -169,6 +169,10 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
               let currentIcon = blueIcon;
               if (report.status === "Verified by Admin") currentIcon = greenIcon;
               else if (report.status === "Verified by Community") currentIcon = goldIcon;
+
+              // Safe Date Parsing for popup
+              const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
+              const formattedDate = rDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + " at " + rDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               return (
                 <Marker
                   key={report.id}
@@ -206,13 +210,17 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
                         {report.category}
                       </span>
 
-                      <div style={{ fontSize: "0.8rem", color: "#333", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "4px", backgroundColor: "#f8f9fa", padding: "6px", borderRadius: "4px", border: "1px solid #eee" }}>
+                      <div style={{ fontSize: "0.8rem", color: "#333", marginBottom: "8px", marginTop: "8px", display: "flex", alignItems: "flex-start", gap: "4px", backgroundColor: "#f8f9fa", padding: "6px", borderRadius: "4px", border: "1px solid #eee" }}>
                         <span>📍</span>
                         <span>
                           {report.address
                             ? report.address
                             : `${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}`}
                         </span>
+                      </div>
+
+                      <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "8px", display: "flex", alignItems: "center", gap: "5px" }}>
+                        <span>🕒</span> {formattedDate}
                       </div>
 
                       {report.imageUrl && (
