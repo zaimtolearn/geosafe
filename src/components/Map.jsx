@@ -50,6 +50,16 @@ const goldIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+// Grey Marker (Resolved)
+const greyIcon = new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
 const homeIcon = new L.divIcon({
   html: '<div style="font-size: 28px; text-shadow: 0px 2px 5px rgba(0,0,0,0.5);">🏠</div>',
   className: 'custom-home-icon',
@@ -169,38 +179,32 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
               let currentIcon = blueIcon;
               if (report.status === "Verified by Admin") currentIcon = greenIcon;
               else if (report.status === "Verified by Community") currentIcon = goldIcon;
+              else if (report.status === "Resolved") currentIcon = greyIcon;
 
               // Safe Date Parsing for popup
               const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
               const formattedDate = rDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + " at " + rDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               return (
-                <Marker
-                  key={report.id}
-                  position={[report.location.lat, report.location.lng]}
-                  icon={currentIcon}
-                >
+                <Marker key={report.id} position={[report.location.lat, report.location.lng]} icon={currentIcon}>
                   <Popup>
                     <div style={{ minWidth: "200px" }}>
                       {/* STATUS BADGE */}
                       <div
                         style={{
-                          marginBottom: "5px",
-                          padding: "4px 8px",
-                          borderRadius: "4px",
-                          display: "inline-block",
-                          fontSize: "0.75rem",
-                          fontWeight: "bold",
+                          marginBottom: "5px", padding: "4px 8px", borderRadius: "4px", display: "inline-block", fontSize: "0.75rem", fontWeight: "bold",
                           backgroundColor:
                             report.status === "Verified by Admin" ? "#d4edda" :
-                              report.status === "Verified by Community" ? "#fef08a" : "#f8d7da",
+                              report.status === "Verified by Community" ? "#fef08a" :
+                                report.status === "Resolved" ? "#e2e8f0" : "#f8d7da",
                           color:
                             report.status === "Verified by Admin" ? "#155724" :
-                              report.status === "Verified by Community" ? "#854d0e" : "#721c24",
+                              report.status === "Verified by Community" ? "#854d0e" :
+                                report.status === "Resolved" ? "#475569" : "#721c24",
                         }}
                       >
-                        {report.status === "Verified by Admin" ? "✅ Verified by Admin" :
-                          report.status === "Verified by Community" ? "👥 Verified by Users" :
-                            "⚠️ UNCONFIRMED"}
+                        {report.status === "Verified by Admin" ? "✅ Admin Verified" :
+                          report.status === "Verified by Community" ? "👥 User Verified" :
+                            report.status === "Resolved" ? "🏁 RESOLVED" : "⚠️ UNCONFIRMED"}
                       </div>
 
                       <h3 style={{ margin: "5px 0", fontSize: "1rem" }}>
@@ -246,8 +250,8 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
 
                       <VoteControls report={report} onVote={onVote} userId={userId} />
 
-                      {/* --- ADMIN ONLY BUTTON --- */}
-                      {userRole === 'admin' && (
+                      {/* --- 1. ADMIN ONLY BUTTON (For Unconfirmed Reports Only) --- */}
+                      {userRole === 'admin' && report.status === "Unconfirmed" && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -261,6 +265,38 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
                         >
                           🔍 Review in Dashboard
                         </button>
+                      )}
+
+                      {/* --- 3. RESOLUTION CONTROLS (For Verified Reports) --- */}
+                      {(report.status === "Verified by Admin" || report.status === "Verified by Community") && (
+                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #eee', textAlign: 'center' }}>
+                          <p style={{ fontSize: '0.7rem', color: '#6b7280', margin: '0 0 5px 0' }}>Is the area safe now?</p>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onVote(report.id, "resolve"); }}
+                              style={{
+                                flex: 1, backgroundColor: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1',
+                                padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'
+                              }}
+                            >
+                              ✅ It's Fixed ({report.resolveVotes || 0}/5)
+                            </button>
+
+                            {/* Admin Redirect Shortcut */}
+                            {userRole === 'admin' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onReviewReport(report); }}
+                                style={{
+                                  backgroundColor: '#64748b', color: 'white', border: 'none',
+                                  padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'
+                                }}
+                                title="Manage Resolution in Dashboard"
+                              >
+                                ⚙️ Admin
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </Popup>

@@ -87,7 +87,8 @@ function App() {
     statuses: {
       "Verified by Admin": true,
       "Verified by Community": true,
-      "Unconfirmed": true
+      "Unconfirmed": true,
+      "Resolved": true,
     },
     timeRange: "7d"
   });
@@ -413,28 +414,46 @@ function App() {
 
   const handleVote = async (reportId, voteType) => {
     if (!user) { alert("You must be logged in to vote!"); return; }
-    const voteId = `${reportId}_${user.uid}`;
+
+    // Allow a user to vote to "verify" AND later vote to "resolve"
+    const voteId = voteType === "resolve" ? `${reportId}_${user.uid}_resolve` : `${reportId}_${user.uid}`;
     const voteRef = doc(db, "votes", voteId);
     const reportRef = doc(db, "reports", reportId);
+
     try {
       const voteSnap = await getDoc(voteRef);
-      if (voteSnap.exists()) { alert("You have already voted on this report!"); return; }
+      if (voteSnap.exists()) { alert(`You have already voted to ${voteType} this report!`); return; }
 
       const currentReport = reports.find(r => r.id === reportId);
       let newStatus = currentReport.status || "Unconfirmed";
 
-      // If they are voting 'confirm', and it already has 9 votes (meaning this makes it 10)
+      // 10-Vote Verify Logic
       if (voteType === "confirm" && (currentReport.confirmVotes || 0) >= 9 && newStatus === "Unconfirmed") {
         newStatus = "Verified by Community";
-        // Optional: Trigger a notification here later!
       }
+
+      // 5-Vote Resolve Logic 
+      if (voteType === "resolve" && (currentReport.resolveVotes || 0) >= 4) {
+        newStatus = "Resolved";
+      }
+
       await setDoc(voteRef, { userId: user.uid, reportId: reportId, voteType: voteType, timestamp: new Date() });
-      await updateDoc(reportRef, { [voteType === "confirm" ? "confirmVotes" : "denyVotes"]: increment(1) });
+
+      const fieldToIncrement = voteType === "confirm" ? "confirmVotes" : voteType === "deny" ? "denyVotes" : "resolveVotes";
+
+      await updateDoc(reportRef, {
+        [fieldToIncrement]: increment(1),
+        status: newStatus
+      });
     } catch (error) { console.error("Error voting:", error); alert("Failed to vote."); }
   };
 
   const handleVerifyReport = async (reportId) => { await updateDoc(doc(db, "reports", reportId), { status: "Verified by Admin" }); alert("Report verified by Admin!"); };
   const handleDeleteReport = async (reportId) => { await deleteDoc(doc(db, "reports", reportId)); };
+  const handleResolveReport = async (reportId) => {
+    await updateDoc(doc(db, "reports", reportId), { status: "Resolved" });
+    alert("Report marked as Resolved!");
+  };
 
   const handleEditReport = async (reportId, updatedData) => {
     try {
@@ -548,7 +567,7 @@ function App() {
 
       {showAdmin && (
         <div style={styles.adminOverlay}>
-          <AdminDashboard reports={reports} onVerify={handleVerifyReport} onDelete={handleDeleteReport} onEdit={handleEditReport} onClose={() => setShowAdmin(false)} initialReviewReport={targetReviewReport} clearReviewTarget={() => setTargetReviewReport(null)} categoryTTLs={categoryTTLs} onUpdateTTLs={handleUpdateTTLs} />
+          <AdminDashboard reports={reports} onVerify={handleVerifyReport} onDelete={handleDeleteReport} onEdit={handleEditReport} onClose={() => setShowAdmin(false)} initialReviewReport={targetReviewReport} clearReviewTarget={() => setTargetReviewReport(null)} categoryTTLs={categoryTTLs} onUpdateTTLs={handleUpdateTTLs} onResolve={handleResolveReport} />
         </div>
       )}
     </div>

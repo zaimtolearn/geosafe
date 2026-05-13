@@ -54,9 +54,14 @@ const seedDatabase = async () => {
     const finalLat = randomLoc.lat + jitterLat;
     const finalLng = randomLoc.lng + jitterLng;
 
+    // For random seed generation
     const randomConfirmVotes = Math.floor(Math.random() * 20);
     const randomDenyVotes = Math.floor(Math.random() * 5);
-    const isConfirmed = Math.random() > 0.4 ? "Confirmed" : "Unconfirmed";
+    const randomChance = Math.random();
+    let seedStatus = "Unconfirmed";
+    if (randomChance > 0.8) seedStatus = "Resolved";
+    else if (randomChance > 0.6) seedStatus = "Verified by Admin";
+    else if (randomChance > 0.4) seedStatus = "Verified by Community";
 
     const daysAgo = Math.floor(Math.random() * 30);
     const randomDate = new Date();
@@ -75,7 +80,7 @@ const seedDatabase = async () => {
         userPhoto: null,
         confirmVotes: randomConfirmVotes,
         denyVotes: randomDenyVotes,
-        status: isConfirmed,
+        status: seedStatus,
       });
       successCount++;
     } catch (err) {
@@ -86,7 +91,7 @@ const seedDatabase = async () => {
 };
 
 // --- ADDED MISSING PROPS HERE ---
-function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialReviewReport, clearReviewTarget, categoryTTLs, onUpdateTTLs }) {
+function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialReviewReport, clearReviewTarget, categoryTTLs, onUpdateTTLs, onResolve }) {
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({ title: '', category: '', status: '' });
 
@@ -107,7 +112,16 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
   const regularReports = reports.filter(r => !flaggedReports.includes(r));
 
   const [activeTab, setActiveTab] = useState(flaggedReports.length > 0 ? 'flagged' : 'all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilters, setStatusFilters] = useState({
+    "Unconfirmed": true,
+    "Verified by Community": true,
+    "Verified by Admin": true,
+    "Resolved": true
+  });
+  const handleToggleAllStatuses = (e) => {
+    const val = e.target.checked;
+    setStatusFilters({ "Unconfirmed": val, "Verified by Community": val, "Verified by Admin": val, "Resolved": val });
+  };
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleExportCSV = () => {
@@ -149,7 +163,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
 
   const renderReportCard = (report, isFlagged = false, index) => {
     const isEditing = editingId === report.id;
-    const isConfirmed = report.status === 'Confirmed' || report.status === 'Verified by Admin';
+    const isPending = report.status === 'Unconfirmed';
     const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
     const dateString = rDate.toLocaleDateString() + " " + rDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -178,6 +192,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
                 <option value="Unconfirmed">Unconfirmed</option>
                 <option value="Verified by Community">Verified by Users</option>
                 <option value="Verified by Admin">Verified by Admin</option>
+                <option value="Resolved">Resolved</option>
               </select>
             </div>
           </div>
@@ -189,10 +204,10 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
                 {report.title}
               </h3>
               <span className="pill" style={{
-                backgroundColor: report.status === "Verified by Admin" ? "#d1fae5" : report.status === "Verified by Community" ? "#fef08a" : "#fef3c7",
-                color: report.status === "Verified by Admin" ? "#065f46" : report.status === "Verified by Community" ? "#854d0e" : "#92400e"
+                backgroundColor: report.status === "Verified by Admin" ? "#d1fae5" : report.status === "Verified by Community" ? "#fef08a" : report.status === "Resolved" ? "#f1f5f9" : "#fef3c7",
+                color: report.status === "Verified by Admin" ? "#065f46" : report.status === "Verified by Community" ? "#854d0e" : report.status === "Resolved" ? "#475569" : "#92400e"
               }}>
-                {report.status === "Verified by Admin" ? '✅ Admin Verified' : report.status === "Verified by Community" ? '👥 User Verified' : '⚠️ Pending'}
+                {report.status === "Verified by Admin" ? '✅ Admin Verified' : report.status === "Verified by Community" ? '👥 User Verified' : report.status === "Resolved" ? '🏁 Resolved' : '⚠️ Pending'}
               </span>
             </div>
 
@@ -223,13 +238,20 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
             </>
           ) : (
             <>
-              {report.status === "Unconfirmed" && (
+              {isPending && (
                 <button className="btn-pro btn-pro-review" onClick={() => setReviewingReport(report)}>🔍 Review</button>
               )}
               <button className="btn-pro btn-pro-edit" onClick={() => startEdit(report)}>Edit</button>
               <button className="btn-pro btn-pro-delete" onClick={() => {
                 if (window.confirm(`Permanently delete "${report.title}"?`)) onDelete(report.id);
               }}>Delete</button>
+
+              {/* Admins can manually resolve verified reports */}
+              {(report.status === "Verified by Admin" || report.status === "Verified by Community") && (
+                <button className="btn-pro btn-pro-verify" style={{ backgroundColor: '#64748b' }} onClick={() => {
+                  if (window.confirm(`Mark "${report.title}" as Resolved?`)) onResolve(report.id);
+                }}>🏁 Resolve</button>
+              )}
             </>
           )}
         </div>
@@ -239,8 +261,8 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
 
   let reportsToDisplay = activeTab === 'flagged' ? [...flaggedReports] : [...regularReports];
 
-  if (activeTab === 'all' && statusFilter !== 'all') {
-    reportsToDisplay = reportsToDisplay.filter(r => (r.status || 'Unconfirmed') === statusFilter);
+  if (activeTab === 'all') {
+    reportsToDisplay = reportsToDisplay.filter(r => statusFilters[r.status || 'Unconfirmed']);
   }
 
   if (searchQuery.trim() !== '') {
@@ -297,10 +319,19 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
 
             <div className="admin-modal-actions">
               <button className="btn-pro btn-pro-edit" onClick={() => setReviewingReport(null)}>Cancel</button>
-              <button className="btn-pro btn-pro-verify" onClick={() => {
-                onVerify(reviewingReport.id);
-                setReviewingReport(null);
-              }}>✅ Confirm & Verify</button>
+
+              {/* SMART MODAL LOGIC: Verify vs Resolve */}
+              {reviewingReport.status === "Unconfirmed" ? (
+                <button className="btn-pro btn-pro-verify" onClick={() => {
+                  onVerify(reviewingReport.id);
+                  setReviewingReport(null);
+                }}>✅ Confirm & Verify</button>
+              ) : (
+                <button className="btn-pro btn-pro-verify" style={{ backgroundColor: '#64748b' }} onClick={() => {
+                  if (onResolve) onResolve(reviewingReport.id);
+                  setReviewingReport(null);
+                }}>🏁 Force Resolve</button>
+              )}
             </div>
           </div>
         </div>
@@ -378,19 +409,22 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
               }}
             />
 
+            {/* --- MULTI-SELECT STATUS CHECKBOXES --- */}
             {activeTab === 'all' && (
-              <>
-                <label className="admin-filter-label" htmlFor="admin-status-filter">Status</label>
-                <select
-                  id="admin-status-filter" className="admin-filter-select"
-                  value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <option value="all">All statuses</option>
-                  <option value="Unconfirmed">Pending only</option>
-                  <option value="Verified by Community">Verified by Users</option>
-                  <option value="Verified by Admin">Verified by Admin</option>
-                </select>
-              </>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={Object.values(statusFilters).every(v => v)} onChange={handleToggleAllStatuses} />
+                  All
+                </label>
+                <div style={{ width: '1px', height: '20px', backgroundColor: '#cbd5e1', margin: '0 5px' }}></div>
+
+                {Object.keys(statusFilters).map(status => (
+                  <label key={status} style={{ fontSize: '0.85rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={statusFilters[status]} onChange={(e) => setStatusFilters(prev => ({ ...prev, [status]: e.target.checked }))} />
+                    {status === "Verified by Community" ? "User Verified" : status === "Verified by Admin" ? "Admin Verified" : status}
+                  </label>
+                ))}
+              </div>
             )}
           </div>
         )}

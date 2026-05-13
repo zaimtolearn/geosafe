@@ -18,7 +18,8 @@ function FilterControl({ onFilterApply }) {
   const [statuses, setStatuses] = useState({
     "Verified by Admin": true,
     "Verified by Community": true,
-    "Unconfirmed": true
+    "Unconfirmed": true,
+    "Resolved": true
   });
 
   // 3. Time Range (Single-select)
