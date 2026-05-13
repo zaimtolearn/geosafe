@@ -180,7 +180,20 @@ function App() {
           if (!notify) return;
           const report = change.doc.data();
           if (change.type === "modified" || change.type === "added") {
-            if (report.status === "Confirmed" && userAlertConfig) {
+
+            // --- 1. NORMALIZE STATUS FOR NOTIFICATIONS ---
+            let cleanStatus = report.status || "Unconfirmed";
+            if (cleanStatus === "Confirmed") cleanStatus = "Verified by Admin";
+            else if (cleanStatus === "Unconfirmed" && (report.confirmVotes || 0) >= 10) cleanStatus = "Verified by Community";
+
+            const isVerified = cleanStatus === "Verified by Admin" || cleanStatus === "Verified by Community";
+
+            // --- 2. CHECK IF USER CARES ABOUT THIS CATEGORY ---
+            if (isVerified && userAlertConfig) {
+              const subscribedCategories = userAlertConfig.categories || {};
+              // If the user explicitly unchecked this category, abort the notification!
+              if (subscribedCategories[report.category] === false) return;
+
               if (!report.location?.lat || !report.location?.lng) return;
 
               const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
@@ -207,11 +220,10 @@ function App() {
                       pos.coords.latitude, pos.coords.longitude,
                       report.location.lat, report.location.lng
                     );
-                    // Live alerts use a stricter 3km radius to avoid spam while driving
                     if (distToLive <= 3) {
                       if (Notification.permission === "granted") {
-                        new Notification(`⚠️ LIVE DANGER NEARBY!`, {
-                          body: `${report.title} verified within 3km of your current location.`,
+                        new Notification(`⚠️ LIVE DANGER: ${report.category}`, {
+                          body: `${report.title} verified within 3km of your location.`,
                           icon: report.imageUrl || "/icon-192.png",
                         });
                       }
@@ -221,7 +233,7 @@ function App() {
 
                 // Fire the Home Alert if triggered
                 if (triggerAlert && Notification.permission === "granted") {
-                  new Notification(`⚠️ DANGER NEARBY HOME!`, {
+                  new Notification(`⚠️ NEAR HOME: ${report.category}`, {
                     body: `${report.title} verified within ${radiusKm}km of your Home Base.`,
                     icon: report.imageUrl || "/icon-192.png",
                   });
@@ -270,8 +282,9 @@ function App() {
     const updatedConfig = {
       enabled: newSettings.enabled,
       radius: newSettings.radius,
-      liveEnabled: newSettings.liveEnabled, // SAVE LIVE PREFERENCE
+      liveEnabled: newSettings.liveEnabled,
       location: locationToSave,
+      categories: newSettings.categories,
     };
     setUserAlertConfig(updatedConfig);
 
