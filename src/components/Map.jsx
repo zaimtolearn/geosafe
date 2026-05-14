@@ -95,8 +95,8 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
   const [showHeatmap, setShowHeatmap] = useState(false);
 
   return (
-    <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
-      <button
+    <div className="geosafe-map-shell" style={{ position: 'relative', height: '100vh', width: '100%' }}>
+      <button className="fab-heatmap"
         onClick={() => setShowHeatmap(!showHeatmap)}
         style={{
           position: 'absolute',
@@ -126,7 +126,7 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
         zoomControl={false}
         style={{ height: "100%", width: "100%" }}
       >
-        <ZoomControl position="bottomleft" />
+        <ZoomControl position="topright" />
         <TileLayer
           attribution="&copy; OpenStreetMap contributors"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -171,7 +171,9 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
           </>
         )}
         {showHeatmap ? (
-          <HeatmapLayer points={reports} />
+          <HeatmapLayer
+            points={reports.filter(r => r && r.location && typeof r.location.lat === 'number')}
+          />
         ) : (
           <>
             {reports.map((report) => {

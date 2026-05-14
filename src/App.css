@@ -180,3 +180,8 @@
   border: 2px solid #e2e8f0;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
+
+/* Leaflet top-right controls: start below fixed app header (min-height + padding + safe area) */
+.geosafe-map-shell .leaflet-top.leaflet-right {
+  top: calc(68px + max(8px, env(safe-area-inset-top, 0px)));
+}

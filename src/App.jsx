@@ -579,7 +579,7 @@ function App() {
       />
 
       {!selectMode && !showForm && (
-        <button onClick={startReporting} style={styles.fab}>+ Report Incident</button>
+        <button onClick={startReporting} style={styles.fab} className="fab-report">+ Report Incident</button>
       )}
 
       {pickingHome && <div style={{ ...styles.banner, backgroundColor: "#17a2b8", color: "white" }}>Tap exact location of your home...</div>}

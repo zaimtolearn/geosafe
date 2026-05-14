@@ -43,7 +43,7 @@ function FilterControl({ onFilterApply }) {
     <div style={{ position: 'absolute', top: '140px', left: '20px', zIndex: 1000 }}>
 
       {/* Main Toggle Button */}
-      <button
+      <button className="fab-filter"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           backgroundColor: 'white', border: 'none', padding: '12px 20px',
@@ -57,7 +57,7 @@ function FilterControl({ onFilterApply }) {
 
       {/* The Popup Panel */}
       {isOpen && (
-        <div style={{
+        <div className="panel-filter" style={{
           marginTop: '15px', backgroundColor: 'white', padding: '20px',
           borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
           width: '250px', position: 'absolute', left: '0'

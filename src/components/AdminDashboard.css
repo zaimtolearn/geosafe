@@ -239,7 +239,7 @@
 }
 
 /* Tabs */
-.admin-tabs {
+/* .admin-tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 0;
@@ -249,8 +249,18 @@
   min-width: 0;
   max-width: 100%;
   flex: 1 1 auto;
-}
+} */
 
+.admin-tabs {
+  display: flex;
+  border-bottom: 2px solid #e2e8f0;
+  background: white;
+  padding: 0 10px;
+  /* NEW: Allow horizontal scrolling on mobile */
+  overflow-x: auto; 
+  white-space: nowrap;
+  scrollbar-width: none;
+}
 .admin-tabs::-webkit-scrollbar {
   display: none;
 }
@@ -269,6 +279,7 @@
   cursor: pointer;
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-btn:hover {

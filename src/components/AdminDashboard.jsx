@@ -465,7 +465,7 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
 
             {/* --- MULTI-SELECT STATUS CHECKBOXES --- */}
             {activeTab === 'all' && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div className="admin-status-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
                   <input type="checkbox" checked={Object.values(statusFilters).every(v => v)} onChange={handleToggleAllStatuses} />
                   All

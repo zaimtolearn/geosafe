@@ -4,3 +4,24 @@ body, html, #root {
   height: 100%;
   width: 100%;
 }
+@media (max-width: 640px) {
+  /* Shrink Map Buttons so they fit side-by-side */
+  .fab-report { padding: 10px 14px !important; font-size: 13px !important; bottom: 20px !important; right: 10px !important; }
+  .fab-public { padding: 10px 14px !important; font-size: 13px !important; bottom: 20px !important; left: 10px !important; }
+  .fab-filter { padding: 10px 14px !important; font-size: 13px !important; top: 70px !important; right: 10px !important; }
+  .fab-heatmap { padding: 10px 14px !important; font-size: 13px !important; top: 70px !important; }
+
+  /* Fix Overlapping Map Panels */
+  .panel-public { bottom: 70px !important; left: 10px !important; width: calc(100vw - 20px) !important; max-width: none !important; z-index: 2500 !important; }
+  .panel-filter { right: 10px !important; max-width: none !important; z-index: 2500 !important; }
+  
+  /* Make Admin Dashboard filters scroll horizontally instead of stacking tall */
+  .admin-status-filters {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    padding: 6px 10px !important;
+  }
+  .admin-status-filters::-webkit-scrollbar { display: none; }
+  .admin-status-filters label { white-space: nowrap; font-size: 0.75rem !important; }
+}
