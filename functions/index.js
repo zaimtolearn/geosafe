@@ -1,8 +1,10 @@
-// functions/index.js (Updated for v2)
+// functions/index.js (Updated for v2 & Twilio)
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { onCall } = require("firebase-functions/v2/https"); // NEW: For callable functions
 const admin = require("firebase-admin");
 const geofire = require("geofire-common");
+const twilio = require('twilio'); // NEW: Twilio
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -10,20 +12,23 @@ const db = admin.firestore();
 // Optional: Set region (us-central1 is default/cheapest)
 setGlobalOptions({ region: "us-central1" });
 
+// ==========================================
+// FUNCTION 1: FCM WEB PUSH NOTIFICATIONS
+// ==========================================
 exports.sendGeoAlert = onDocumentWritten("reports/{reportId}", async (event) => {
     // 1. Setup Data Access (New v2 Syntax)
-    // If the document was deleted, 'after' is undefined.
     const newData = event.data && event.data.after ? event.data.after.data() : null;
     const oldData = event.data && event.data.before ? event.data.before.data() : null;
 
-    // Stop if deleted
     if (!newData) return null;
 
-    // Stop if not Confirmed
-    if (newData.status !== "Confirmed") return null;
-    
-    // Optimization: If it was ALREADY confirmed previously, don't send again.
-    if (oldData && oldData.status === "Confirmed") return null;
+    // Normalizing status for backwards compatibility in the backend
+    const isVerified = newData.status === "Confirmed" || newData.status === "Verified by Admin" || newData.status === "Verified by Community";
+    const wasVerified = oldData && (oldData.status === "Confirmed" || oldData.status === "Verified by Admin" || oldData.status === "Verified by Community");
+
+    // Stop if not verified, or if it was ALREADY verified previously
+    if (!isVerified) return null;
+    if (wasVerified) return null;
 
     console.log(`Processing Alert for: ${newData.title}`);
 
@@ -52,6 +57,11 @@ exports.sendGeoAlert = onDocumentWritten("reports/{reportId}", async (event) => 
       snap.forEach((doc) => {
         const user = doc.data();
         if (user.fcmToken && user.alertConfig && user.alertConfig.enabled) {
+          
+          // Check Category Subscriptions!
+          const userCategories = user.alertConfig.categories || {};
+          if (userCategories[newData.category] === false) return; // User opted out of this category
+
           const userLat = user.alertConfig.location.lat;
           const userLng = user.alertConfig.location.lng;
           
@@ -76,28 +86,46 @@ exports.sendGeoAlert = onDocumentWritten("reports/{reportId}", async (event) => 
         },
         tokens: tokensToSend,
         
-        // --- NEW: Time-To-Live (TTL) Settings ---
-        android: {
-          ttl: 600 * 1000, // 10 Minutes (in milliseconds)
-          priority: 'high'
-        },
-        webpush: {
-          headers: {
-            TTL: "600" // 10 Minutes (in seconds)
-          }
-        },
-        apns: {
-            payload: {
-                aps: {
-                    expiration: Math.floor(Date.now() / 1000) + 600 // UNIX timestamp 10 mins from now
-                }
-            }
-        }
+        android: { ttl: 600 * 1000, priority: 'high' },
+        webpush: { headers: { TTL: "600" } },
+        apns: { payload: { aps: { expiration: Math.floor(Date.now() / 1000) + 600 } } }
       };
 
       const response = await admin.messaging().sendMulticast(message);
       console.log("Notifications sent:", response.successCount);
     } else {
         console.log("No matching users found nearby.");
+    }
+});
+
+
+// ==========================================
+// FUNCTION 2: TWILIO WHATSAPP ALERTS
+// ==========================================
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = new twilio(accountSid, authToken);
+const TWILIO_SANDBOX_NUMBER = 'whatsapp:+14155238886'; // Change if your Twilio sandbox number is different
+
+exports.sendWhatsAppAlert = onCall(async (request) => {
+    // Note: v2 uses request.data
+    const phone = request.data.phone;
+    const message = request.data.message;
+
+    if (!phone) return { success: false, error: "No phone number provided" };
+
+    const cleanPhone = phone.replace(/[^0-9+]/g, '');
+
+    try {
+        const response = await client.messages.create({
+            body: message,
+            from: TWILIO_SANDBOX_NUMBER,
+            to: `whatsapp:${cleanPhone}`
+        });
+        console.log("WhatsApp sent successfully:", response.sid);
+        return { success: true, messageId: response.sid };
+    } catch (error) {
+        console.error("Twilio Error:", error);
+        return { success: false, error: error.message }; 
     }
 });

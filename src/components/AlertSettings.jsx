@@ -13,6 +13,7 @@ function AlertSettings({
   const [enabled, setEnabled] = useState(currentSettings?.enabled || false);
   const [radius, setRadius] = useState(currentSettings?.radius || 5);
   const [liveEnabled, setLiveEnabled] = useState(currentSettings?.liveEnabled || false);
+  const [phone, setPhone] = useState(currentSettings?.phone || "");
 
   // --- NEW: Category Subscriptions State ---
   const defaultCategories = {
@@ -30,7 +31,7 @@ function AlertSettings({
       Notification.requestPermission();
     }
     // --- NEW: Pass categories back to App.jsx ---
-    onSave({ enabled, radius, liveEnabled, categories });
+    onSave({ enabled, radius, liveEnabled, categories, phone });
     onClose();
   };
 
@@ -67,6 +68,27 @@ function AlertSettings({
         </div>
 
         <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '20px 0' }} />
+
+        {/* --- NEW: WHATSAPP NOTIFICATION SETUP --- */}
+        <div style={styles.section}>
+          <h3 style={{ fontSize: '0.95rem', marginBottom: '8px', color: '#1f2937' }}>📱 WhatsApp Alerts</h3>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '10px' }}>
+            Enter your WhatsApp number to receive instant SMS alerts when a critical incident is verified near you.
+          </p>
+          <input
+            type="tel"
+            placeholder="e.g. +60123456789"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            style={{
+              width: '100%', padding: '10px', borderRadius: '6px',
+              border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none'
+            }}
+          />
+          <small style={{ color: '#94a3b8', display: 'block', marginTop: '5px' }}>
+            Must include country code (e.g., +60 for Malaysia).
+          </small>
+        </div>
 
         {/* --- HOME ALERTS TOGGLE --- */}
         <div style={styles.section}>

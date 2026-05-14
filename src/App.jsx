@@ -11,7 +11,8 @@ import PublicStatsWidget from "./components/PublicStatsWidget";
 import { getToken } from 'firebase/messaging';
 import { messaging } from './firebase';
 import * as geofire from 'geofire-common';
-import { db, auth, googleProvider, storage } from "./firebase";
+import { db, auth, googleProvider, storage, functions } from "./firebase";
+import { httpsCallable } from "firebase/functions";
 import { signInWithPopup, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
@@ -231,12 +232,32 @@ function App() {
                   });
                 }
 
+                // // Fire the Home Alert if triggered
+                // if (triggerAlert && Notification.permission === "granted") {
+                //   new Notification(`⚠️ NEAR HOME: ${report.category}`, {
+                //     body: `${report.title} verified within ${radiusKm}km of your Home Base.`,
+                //     icon: report.imageUrl || "/icon-192.png",
+                //   });
+                // }
                 // Fire the Home Alert if triggered
-                if (triggerAlert && Notification.permission === "granted") {
-                  new Notification(`⚠️ NEAR HOME: ${report.category}`, {
-                    body: `${report.title} verified within ${radiusKm}km of your Home Base.`,
-                    icon: report.imageUrl || "/icon-192.png",
-                  });
+                if (triggerAlert) {
+                  // 1. Web Push Notification
+                  if (Notification.permission === "granted") {
+                    new Notification(`⚠️ NEAR HOME: ${report.category}`, {
+                      body: `${report.title} verified within ${radiusKm}km of your Home Base.`,
+                      icon: report.imageUrl || "/icon-192.png",
+                    });
+                  }
+
+                  // 2. WhatsApp Notification via Twilio!
+                  if (userAlertConfig.phone) {
+                    const sendWhatsApp = httpsCallable(functions, 'sendWhatsAppAlert');
+                    sendWhatsApp({
+                      phone: userAlertConfig.phone,
+                      message: `🚨 *GeoSafe Alert: ${report.category}*\n\n${report.title} has been verified within ${radiusKm}km of your Home Base.\n\n📍 Location: ${report.address || 'Check Map'}\n🕒 Time: ${new Date().toLocaleTimeString()}`
+                    }).then(() => console.log("WhatsApp request sent to backend!"))
+                      .catch((err) => console.error("WhatsApp trigger failed:", err));
+                  }
                 }
               }
             }
@@ -285,6 +306,7 @@ function App() {
       liveEnabled: newSettings.liveEnabled,
       location: locationToSave,
       categories: newSettings.categories,
+      phone: newSettings.phone
     };
     setUserAlertConfig(updatedConfig);
 
