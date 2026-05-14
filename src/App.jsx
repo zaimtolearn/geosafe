@@ -381,6 +381,19 @@ function App() {
   const handleLogout = async () => { await signOut(auth); };
 
   const startReporting = () => {
+    if (!user) {
+      const wantsToLogin = window.confirm(
+        "👋 Wait! You are currently a Guest.\n\n" +
+        "Signing in allows you to track your reports and get real-time status updates.\n\n" +
+        "Click 'OK' to Sign In now, or 'Cancel' to continue reporting anonymously."
+      );
+
+      if (wantsToLogin) {
+        handleLogin();
+        return; // Stop the reporting flow so they can log in!
+      }
+    }
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
