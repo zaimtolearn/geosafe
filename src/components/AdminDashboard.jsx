@@ -1,5 +1,5 @@
 // src/components/AdminDashboard.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import AdminAnalytics from './AdminAnalytics';
 import './AdminDashboard.css';
 import { collection, addDoc } from "firebase/firestore";
@@ -14,6 +14,22 @@ const redIcon = new L.Icon({
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 });
+
+// --- HAVERSINE DISTANCE CALCULATOR ---
+function getDistanceInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) *
+    Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+function deg2rad(deg) { return deg * (Math.PI / 180); }
 
 // --- TEMPORARY DATABASE SEEDER ---
 const seedDatabase = async () => {
@@ -123,6 +139,30 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
     setStatusFilters({ "Unconfirmed": val, "Verified by Community": val, "Verified by Admin": val, "Resolved": val });
   };
   const [searchQuery, setSearchQuery] = useState('');
+  // --- DUPLICATE DETECTION ENGINE ---
+  const duplicatesMap = useMemo(() => {
+    const map = {};
+    const DUPLICATE_THRESHOLD_KM = 0.05; // 50 meters
+
+    reports.forEach(r1 => {
+      // Only check active reports (ignore resolved ones)
+      if (r1.status === "Resolved" || !r1.location?.lat) {
+        map[r1.id] = false;
+        return;
+      }
+
+      const isDup = reports.some(r2 => {
+        if (r1.id === r2.id) return false; // Don't compare to itself
+        if (r2.status === "Resolved" || !r2.location?.lat) return false;
+
+        const dist = getDistanceInKm(r1.location.lat, r1.location.lng, r2.location.lat, r2.location.lng);
+        return dist <= DUPLICATE_THRESHOLD_KM;
+      });
+
+      map[r1.id] = isDup;
+    });
+    return map;
+  }, [reports]);
 
   const handleExportCSV = () => {
     const headers = ["Report ID", "Title", "Category", "Status", "Latitude", "Longitude", "Date Submitted"];
@@ -167,8 +207,22 @@ function AdminDashboard({ reports, onVerify, onDelete, onEdit, onClose, initialR
     const rDate = report.timestamp?.toDate ? report.timestamp.toDate() : new Date(report.timestamp);
     const dateString = rDate.toLocaleDateString() + " " + rDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    // Check if this specific report was flagged by the detection engine
+    const isDuplicate = duplicatesMap[report.id];
+
     return (
       <div key={report.id} className={`report-card-pro ${isFlagged ? 'flagged-card' : ''}`}>
+
+        {/* --- NEW: DUPLICATE WARNING BANNER --- */}
+        {isDuplicate && report.status !== "Resolved" && (
+          <div style={{
+            backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b',
+            padding: '6px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold',
+            marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '5px'
+          }}>
+            ⚠️ Potential Duplicate (&lt; 50m from another report)
+          </div>
+        )}
 
         {isEditing ? (
           <div className="edit-form-pro">
