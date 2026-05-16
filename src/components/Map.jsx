@@ -68,6 +68,85 @@ const homeIcon = new L.divIcon({
   popupAnchor: [0, -15]
 });
 
+// --- HAVERSINE DISTANCE MATH ---
+function getDistanceInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+// --- NEW: SMART HOTSPOT SCANNER ---
+function HeatmapInspector({ isHeatmapActive, reports }) {
+  const [hotspot, setHotspot] = useState(null);
+
+  useMapEvents({
+    click(e) {
+      if (!isHeatmapActive) {
+        setHotspot(null);
+        return;
+      }
+
+      const clickLat = e.latlng.lat;
+      const clickLng = e.latlng.lng;
+
+      // 1. Scan for all reports within 1km (1000 meters) of the tap!
+      const nearby = reports.filter(r => {
+        if (!r.location?.lat) return false;
+        return getDistanceInKm(clickLat, clickLng, r.location.lat, r.location.lng) <= 1.0;
+      });
+
+      if (nearby.length > 0) {
+        // 2. Crunch the analytics
+        let active = 0; let resolved = 0; const cats = {};
+        nearby.forEach(r => {
+          if (r.status === "Resolved") resolved++; else active++;
+          cats[r.category] = (cats[r.category] || 0) + 1;
+        });
+
+        let topCat = "None"; let max = 0;
+        Object.entries(cats).forEach(([cat, count]) => {
+          if (count > max) { max = count; topCat = cat; }
+        });
+
+        // 3. Trigger the popup
+        setHotspot({ latlng: e.latlng, total: nearby.length, active, resolved, topCat });
+      } else {
+        setHotspot(null); // Clicked in an empty area
+      }
+    }
+  });
+
+  if (!isHeatmapActive || !hotspot) return null;
+
+  return (
+    <Popup position={hotspot.latlng} onClose={() => setHotspot(null)}>
+      <div style={{ textAlign: 'center', minWidth: '160px', fontFamily: 'system-ui, sans-serif' }}>
+        <h3 style={{ margin: '0 0 10px 0', fontSize: '1rem', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'center' }}>
+          🔥 Hotspot Data
+        </h3>
+        <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#1e293b' }}>
+          {hotspot.total} <span style={{ fontSize: '0.7rem', fontWeight: 'normal', color: '#64748b' }}>REPORTS</span>
+        </div>
+        <div style={{ margin: '10px 0', display: 'flex', justifyContent: 'space-between', backgroundColor: '#f8fafc', padding: '6px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.9rem', color: '#ef4444', fontWeight: 'bold' }}>{hotspot.active}</span>
+            <span style={{ fontSize: '0.6rem', color: '#64748b', textTransform: 'uppercase' }}>Active</span>
+          </div>
+          <div style={{ width: '1px', backgroundColor: '#cbd5e1' }}></div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.9rem', color: '#10b981', fontWeight: 'bold' }}>{hotspot.resolved}</span>
+            <span style={{ fontSize: '0.6rem', color: '#64748b', textTransform: 'uppercase' }}>Fixed</span>
+          </div>
+        </div>
+        <div style={{ fontSize: '0.8rem', color: '#334155', backgroundColor: '#fee2e2', padding: '4px', borderRadius: '4px' }}>
+          <strong>Major Threat:</strong> {hotspot.topCat}
+        </div>
+      </div>
+    </Popup>
+  );
+}
 // Helper to move the map
 function MapController({ center }) {
   const map = useMap();
@@ -137,6 +216,9 @@ function Map({ onMapClick, reports = [], onVote, userId, flyToLocation, userAler
 
         {/* Click Listener Helper */}
         {onMapClick && <LocationPicker onLocationSelect={onMapClick} />}
+
+        {/* --- NEW: THE INTERACTIVE HEATMAP RADAR --- */}
+        <HeatmapInspector isHeatmapActive={showHeatmap} reports={reports} />
 
         {/* 4. --- NEW: RENDER HOME ZONE (Visible even if Heatmap is on!) --- */}
         {userAlertConfig && userAlertConfig.enabled && userAlertConfig.location && (

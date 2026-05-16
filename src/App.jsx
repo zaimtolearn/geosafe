@@ -137,7 +137,7 @@ function App() {
         const hash = geofire.geohashForLocation([location.lat, location.lng]);
         await updateDoc(doc(db, 'users', uid), {
           fcmToken: token,
-          alertConfig: { enabled: true, location: location, geohash: hash, radius: 5 }
+          //alertConfig: { enabled: true, location: location, geohash: hash, radius: 5 }
         });
       }
     } catch (error) { console.error("Notification Error:", error); }
@@ -300,13 +300,19 @@ function App() {
 
   const handleSaveAlertSettings = async (newSettings) => {
     const locationToSave = newSettings.location || userAlertConfig?.location;
+    let newGeohash = userAlertConfig?.geohash;
+    if (locationToSave) {
+      newGeohash = geofire.geohashForLocation([locationToSave.lat, locationToSave.lng]);
+    }
     const updatedConfig = {
+      ...userAlertConfig,
       enabled: newSettings.enabled,
       radius: newSettings.radius,
       liveEnabled: newSettings.liveEnabled,
       location: locationToSave,
       categories: newSettings.categories,
-      phone: newSettings.phone
+      phone: newSettings.phone,
+      geohash: newGeohash,
     };
     setUserAlertConfig(updatedConfig);
 
@@ -315,7 +321,7 @@ function App() {
       await updateDoc(userRef, { alertConfig: updatedConfig });
       alert("Alert settings saved!");
       if ((newSettings.enabled || newSettings.liveEnabled) && locationToSave) {
-        await requestNotificationPermission(user.uid, locationToSave);
+        await requestNotificationPermission(user.uid);
       }
     }
   };

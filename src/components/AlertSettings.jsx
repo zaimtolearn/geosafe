@@ -75,6 +75,11 @@ function AlertSettings({
           <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '10px' }}>
             Enter your WhatsApp number to receive instant SMS alerts when a critical incident is verified near you.
           </p>
+          {currentSettings?.phone && (
+            <div style={{ backgroundColor: '#dcfce3', color: '#166534', padding: '8px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #bbf7d0' }}>
+              ✅ Saved in Firebase: {currentSettings.phone}
+            </div>
+          )}
           <input
             type="tel"
             placeholder="e.g. +60123456789"
