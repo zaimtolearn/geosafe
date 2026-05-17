@@ -31,61 +31,89 @@ function getDistanceInKm(lat1, lon1, lat2, lon2) {
 }
 function deg2rad(deg) { return deg * (Math.PI / 180); }
 
-// --- TEMPORARY DATABASE SEEDER ---
+// --- UPGRADED TEMPORARY DATABASE SEEDER ---
 const seedDatabase = async () => {
-  if (!window.confirm("⚠️ WARNING: This will inject 10 fake reports into your live database. Proceed?")) return;
+  if (!window.confirm("⚠️ WARNING: This will inject 10 realistic fake reports into your live database. Proceed?")) return;
 
-  const categories = ["Infrastructure", "Natural Hazard", "Traffic", "Security", "Environment"];
-  const titles = [
-    "Massive pothole in left lane", "Fallen tree blocking road", "Traffic light malfunction",
-    "Flooding after heavy rain", "Vandalized street sign", "Illegal dumping ground",
-    "Streetlights not working", "Minor car collision", "Suspicious gathering", "Broken pavement"
-  ];
+  // 1. Smart Category & Title Mapping
+  const categoryTitles = {
+    "Infrastructure": ["Massive pothole in left lane", "Streetlights not working", "Broken pavement on walkway", "Burst water pipe flooding road", "Collapsed drain cover", "Traffic light malfunction"],
+    "Natural Hazard": ["Flooding after heavy rain", "Fallen tree blocking road", "Landslide warning on hill", "Strong winds debris", "Ponding water on highway"],
+    "Traffic": ["Severe traffic congestion", "Minor car collision", "Vehicle breakdown blocking lane", "Hit and run incident", "Road closure due to construction"],
+    "Security": ["Suspicious gathering", "Vandalized street sign", "Attempted break-in reported", "Snatch theft incident area", "Stray dogs acting aggressively"],
+    "Environment": ["Illegal dumping ground", "Open burning smell", "Oil spill on road", "Foul smell from river", "Excessive construction noise"]
+  };
+  const categories = Object.keys(categoryTitles);
 
+  // 2. Expanded Penang Locations (25+ Locations)
   const penangLocations = [
-    { lat: 5.3582, lng: 100.2965, address: "Universiti Sains Malaysia, Gelugor, Penang, 11800, Malaysia" },
-    { lat: 5.3421, lng: 100.2819, address: "Jalan Bukit Gambir, Bukit Jambul, Penang, 11950, Malaysia" },
-    { lat: 5.4141, lng: 100.3288, address: "Lebuh Chulia, George Town, Penang, 10200, Malaysia" },
-    { lat: 5.3315, lng: 100.2928, address: "Queensbay Mall Area, Bayan Lepas, Penang, 11900, Malaysia" },
-    { lat: 5.4294, lng: 100.3142, address: "Persiaran Gurney, George Town, Penang, 10250, Malaysia" },
-    { lat: 5.3833, lng: 100.3138, address: "Jalan Sultan Azlan Shah, Gelugor, Penang, 11700, Malaysia" },
-    { lat: 5.3957, lng: 100.3194, address: "Karpal Singh Drive, Jelutong, Penang, 11600, Malaysia" },
-    { lat: 5.2971, lng: 100.2582, address: "Jalan Permatang Damar Laut, Bayan Lepas, Penang, 11960, Malaysia" },
-    { lat: 5.3218, lng: 100.2823, address: "SPICE Arena Area, Bayan Baru, Penang, 11900, Malaysia" },
-    { lat: 5.4168, lng: 100.3303, address: "Lebuh Pantai (Beach Street), George Town, Penang, 10300, Malaysia" },
-    { lat: 5.3674, lng: 100.3061, address: "Jalan Masjid Negeri, Green Lane, Penang, 11600, Malaysia" },
-    { lat: 5.3096, lng: 100.2769, address: "Bayan Lepas Free Industrial Zone, Phase 3, Penang, 11900, Malaysia" }
+    { lat: 5.3582, lng: 100.2965, address: "Universiti Sains Malaysia, Gelugor, Penang" },
+    { lat: 5.3421, lng: 100.2819, address: "Jalan Bukit Gambir, Bukit Jambul, Penang" },
+    { lat: 5.4141, lng: 100.3288, address: "Lebuh Chulia, George Town, Penang" },
+    { lat: 5.3315, lng: 100.2928, address: "Queensbay Mall Area, Bayan Lepas, Penang" },
+    { lat: 5.4294, lng: 100.3142, address: "Persiaran Gurney, George Town, Penang" },
+    { lat: 5.3833, lng: 100.3138, address: "Jalan Sultan Azlan Shah, Gelugor, Penang" },
+    { lat: 5.3957, lng: 100.3194, address: "Karpal Singh Drive, Jelutong, Penang" },
+    { lat: 5.2971, lng: 100.2582, address: "Jalan Permatang Damar Laut, Bayan Lepas, Penang" },
+    { lat: 5.3218, lng: 100.2823, address: "SPICE Arena Area, Bayan Baru, Penang" },
+    { lat: 5.4168, lng: 100.3303, address: "Lebuh Pantai (Beach Street), George Town, Penang" },
+    { lat: 5.3674, lng: 100.3061, address: "Jalan Masjid Negeri, Green Lane, Penang" },
+    { lat: 5.3096, lng: 100.2769, address: "Bayan Lepas Free Industrial Zone, Penang" },
+    // New Locations Added:
+    { lat: 5.3524, lng: 100.3021, address: "Tesco Extra Sungai Dua, Gelugor, Penang" },
+    { lat: 5.4005, lng: 100.2797, address: "Kek Lok Si Temple Area, Air Itam, Penang" },
+    { lat: 5.3908, lng: 100.3082, address: "Batu Lanchang Market, Jelutong, Penang" },
+    { lat: 5.3331, lng: 100.2745, address: "Relau Metropolitan Park, Relau, Penang" },
+    { lat: 5.4593, lng: 100.3088, address: "Straits Quay, Tanjong Tokong, Penang" },
+    { lat: 5.4655, lng: 100.2801, address: "Batu Ferringhi Night Market, Penang" },
+    { lat: 5.3871, lng: 100.2741, address: "Paya Terubong Main Road, Penang" },
+    { lat: 5.3496, lng: 100.2267, address: "Balik Pulau Town Center, Penang" },
+    { lat: 5.4184, lng: 100.3363, address: "Swettenham Pier Cruise Terminal, Penang" },
+    { lat: 5.3785, lng: 100.3023, address: "Penang General Hospital, George Town, Penang" }
   ];
 
   let successCount = 0;
 
   for (let i = 0; i < 10; i++) {
+    // Pick category, then pick a title matching that category
     const randomCat = categories[Math.floor(Math.random() * categories.length)];
-    const randomTitle = titles[Math.floor(Math.random() * titles.length)];
+    const catTitles = categoryTitles[randomCat];
+    const randomTitle = catTitles[Math.floor(Math.random() * catTitles.length)];
+
+    // Pick location & add jitter (approx 400m radius)
     const randomLoc = penangLocations[Math.floor(Math.random() * penangLocations.length)];
-
-    const jitterLat = (Math.random() - 0.5) * 0.004;
-    const jitterLng = (Math.random() - 0.5) * 0.004;
-
+    const jitterLat = (Math.random() - 0.5) * 0.008;
+    const jitterLng = (Math.random() - 0.5) * 0.008;
     const finalLat = randomLoc.lat + jitterLat;
     const finalLng = randomLoc.lng + jitterLng;
 
-    // For random seed generation
-    const randomConfirmVotes = Math.floor(Math.random() * 20);
-    const randomDenyVotes = Math.floor(Math.random() * 5);
+    // 3. Logical Vote & Status Generation
     const randomChance = Math.random();
     let seedStatus = "Unconfirmed";
-    if (randomChance > 0.8) seedStatus = "Resolved";
-    else if (randomChance > 0.6) seedStatus = "Verified by Admin";
-    else if (randomChance > 0.4) seedStatus = "Verified by Community";
+    let confirmV = Math.floor(Math.random() * 8); // 0-7 votes
+    let denyV = Math.floor(Math.random() * 3);
+    let resolveV = Math.floor(Math.random() * 2);
 
-    const daysAgo = Math.floor(Math.random() * 30);
+    if (randomChance > 0.8) {
+      seedStatus = "Resolved";
+      confirmV = Math.floor(Math.random() * 15) + 5;
+      resolveV = Math.floor(Math.random() * 5) + 5; // Resolved needs 5+ votes
+    } else if (randomChance > 0.6) {
+      seedStatus = "Verified by Admin";
+      confirmV = Math.floor(Math.random() * 5); // Admins can verify with low community votes
+    } else if (randomChance > 0.4) {
+      seedStatus = "Verified by Community";
+      confirmV = Math.floor(Math.random() * 15) + 10; // Community verification needs 10+ votes
+    }
+
+    // Distribute reports over the last 14 days
+    const daysAgo = Math.floor(Math.random() * 14);
     const randomDate = new Date();
     randomDate.setDate(randomDate.getDate() - daysAgo);
 
     try {
       await addDoc(collection(db, "reports"), {
-        title: `${randomTitle} [SEED]`,
+        title: `${randomTitle}`, // Removed [SEED] tag for cleaner screenshots
         category: randomCat,
         address: randomLoc.address,
         location: { lat: finalLat, lng: finalLng },
@@ -94,8 +122,9 @@ const seedDatabase = async () => {
         userId: "admin_seed_script",
         userName: "System Generated",
         userPhoto: null,
-        confirmVotes: randomConfirmVotes,
-        denyVotes: randomDenyVotes,
+        confirmVotes: confirmV,
+        denyVotes: denyV,
+        resolveVotes: resolveV,
         status: seedStatus,
       });
       successCount++;
