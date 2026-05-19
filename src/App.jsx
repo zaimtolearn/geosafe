@@ -8,6 +8,7 @@ import FilterControl from "./components/FilterControl";
 import Sidebar from "./components/Sidebar";
 import AlertSettings from "./components/AlertSettings";
 import PublicStatsWidget from "./components/PublicStatsWidget";
+import AuthModal from "./components/AuthModal";
 import { getToken } from 'firebase/messaging';
 import { messaging } from './firebase';
 import * as geofire from 'geofire-common';
@@ -66,6 +67,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState("user");
   const [reports, setReports] = useState([]);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const [showAlertSettings, setShowAlertSettings] = useState(false);
   const [userAlertConfig, setUserAlertConfig] = useState(null);
@@ -402,9 +404,12 @@ function App() {
   const handleFilterApply = (newFilters) => setActiveFilters(newFilters);
 
   // BUGFIX: Switched back to signInWithPopup for reliability
-  const handleLogin = async () => {
-    try { await signInWithPopup(auth, googleProvider); }
-    catch (error) { console.error(error); alert("Sign in failed. Check connection or popup blockers."); }
+  // const handleLogin = async () => {
+  //   try { await signInWithPopup(auth, googleProvider); }
+  //   catch (error) { console.error(error); alert("Sign in failed. Check connection or popup blockers."); }
+  // };
+  const handleLogin = () => {
+    setIsAuthModalOpen(true);
   };
   const handleLogout = async () => { await signOut(auth); };
 
@@ -591,6 +596,11 @@ function App() {
       <AlertSettings isOpen={showAlertSettings} onClose={() => setShowAlertSettings(false)} currentSettings={userAlertConfig} onSave={handleSaveAlertSettings} onPickLocation={startPickingHome} />
 
       <Sidebar isOpen={showSidebar} onClose={() => setShowSidebar(false)} user={user} userReports={myReports} onFlyTo={handleFlyTo} onUpdateProfile={handleUpdateProfile} />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
 
       <Map
         onMapClick={handleMapClick}
