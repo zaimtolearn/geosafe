@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import Map from "./components/Map";
 import ReportForm from "./components/ReportForm";
@@ -145,10 +145,10 @@ function App() {
     } catch (error) { console.error("Notification Error:", error); }
   };
 
-  // BUGFIX: Use a ref so it doesn't reset when userAlertConfig changes
-  const isFirstSnapshot = useRef(true);
-
   useEffect(() => {
+    // This variable resets to 'true' every time this useEffect restarts!
+    let isInitialFetch = true;
+
     const q = query(collection(db, "reports"), orderBy("timestamp", "desc"));
     const unsubscribe = onSnapshot(
       q,
@@ -159,28 +159,28 @@ function App() {
           // --- MASTER DATA NORMALIZER ---
           let cleanStatus = data.status || "Unconfirmed";
 
-          // 1. Fix Legacy "Confirmed" data
           if (cleanStatus === "Confirmed") {
             cleanStatus = "Verified by Admin";
-          }
-          // 2. Force 10-vote auto-verify for old reports
-          else if (cleanStatus === "Unconfirmed" && (data.confirmVotes || 0) >= 10) {
+          } else if (cleanStatus === "Unconfirmed" && (data.confirmVotes || 0) >= 10) {
             cleanStatus = "Verified by Community";
           }
 
           return {
             id: doc.id,
             ...data,
-            status: cleanStatus // Inject the clean status to the rest of the app!
+            status: cleanStatus
           };
         });
         setReports(fetchedReports);
 
-        const notify = !isFirstSnapshot.current;
-        isFirstSnapshot.current = false;
+        // --- BLOCK INITIAL SPAM ---
+        if (isInitialFetch) {
+          isInitialFetch = false;
+          return; // Stop here! Do not run the notification loop below.
+        }
+        // --------------------------
 
         snapshot.docChanges().forEach((change) => {
-          if (!notify) return;
           const report = change.doc.data();
           if (change.type === "modified" || change.type === "added") {
 
@@ -194,7 +194,6 @@ function App() {
             // --- 2. CHECK IF USER CARES ABOUT THIS CATEGORY ---
             if (isVerified && userAlertConfig) {
               const subscribedCategories = userAlertConfig.categories || {};
-              // If the user explicitly unchecked this category, abort the notification!
               if (subscribedCategories[report.category] === false) return;
 
               if (!report.location?.lat || !report.location?.lng) return;
@@ -234,13 +233,6 @@ function App() {
                   });
                 }
 
-                // // Fire the Home Alert if triggered
-                // if (triggerAlert && Notification.permission === "granted") {
-                //   new Notification(`⚠️ NEAR HOME: ${report.category}`, {
-                //     body: `${report.title} verified within ${radiusKm}km of your Home Base.`,
-                //     icon: report.imageUrl || "/icon-192.png",
-                //   });
-                // }
                 // Fire the Home Alert if triggered
                 if (triggerAlert) {
                   // 1. Web Push Notification
