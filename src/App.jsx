@@ -93,7 +93,7 @@ function App() {
       "Unconfirmed": true,
       "Resolved": true,
     },
-    timeRange: "7d"
+    timeRange: "all"
   });
 
   // CATEGORY EXPIRY TIMERS (Time-To-Live in Hours)
