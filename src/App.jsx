@@ -295,7 +295,7 @@ function App() {
   const handleSaveAlertSettings = async (newSettings) => {
     const locationToSave = newSettings.location || userAlertConfig?.location;
     let newGeohash = userAlertConfig?.geohash;
-    if (locationToSave) {
+    if (locationToSave && locationToSave.lat !== undefined) {
       newGeohash = geofire.geohashForLocation([locationToSave.lat, locationToSave.lng]);
     }
     const updatedConfig = {
