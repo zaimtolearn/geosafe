@@ -91,7 +91,8 @@ exports.sendGeoAlert = onDocumentWritten("reports/{reportId}", async (event) => 
         apns: { payload: { aps: { expiration: Math.floor(Date.now() / 1000) + 600 } } }
       };
 
-      const response = await admin.messaging().sendMulticast(message);
+      // const response = await admin.messaging().sendMulticast(message);
+      const response = await admin.messaging().sendEachForMulticast(message);
       console.log("Notifications sent:", response.successCount);
     } else {
         console.log("No matching users found nearby.");

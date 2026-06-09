@@ -300,13 +300,13 @@ function App() {
     }
     const updatedConfig = {
       ...userAlertConfig,
-      enabled: newSettings.enabled,
-      radius: newSettings.radius,
-      liveEnabled: newSettings.liveEnabled,
-      location: locationToSave,
-      categories: newSettings.categories,
-      phone: newSettings.phone,
-      geohash: newGeohash,
+      enabled: newSettings.enabled ?? false,
+      radius: newSettings.radius || 5, // Force 5km if undefined!
+      liveEnabled: newSettings.liveEnabled ?? false,
+      location: locationToSave || null,
+      categories: newSettings.categories || userAlertConfig?.categories || {},
+      phone: newSettings.phone || "",
+      geohash: newGeohash || null,
     };
     setUserAlertConfig(updatedConfig);
 
@@ -315,7 +315,7 @@ function App() {
       await updateDoc(userRef, { alertConfig: updatedConfig });
       alert("Alert settings saved!");
       if ((newSettings.enabled || newSettings.liveEnabled) && locationToSave) {
-        await requestNotificationPermission(user.uid);
+        await requestNotificationPermission(user.uid, locationToSave);
       }
     }
   };
