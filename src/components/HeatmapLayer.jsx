@@ -7,14 +7,21 @@ import 'leaflet.heat'; // This attaches the heat plugin to Leaflet
 export default function HeatmapLayer({ points }) {
     const map = useMap(); // Get direct access to the Leaflet map instance
 
+    const getWeight = (status) => {
+        if (status === "Verified by Admin") return 1.5;
+        if (status === "Verified by Community") return 1.0;
+        if (status === "Resolved") return 0.1; // Barely visible
+        return 0.5; // Unconfirmed
+    };
+
     useEffect(() => {
-        if (!points || points.length === 0) return;
+        if (!map || !points || points.length === 0) return;
 
         // 1. Convert our reports into the format the heatmap wants: [lat, lng, intensity]
         const heatData = points.map(report => [
             report.location.lat,
             report.location.lng,
-            1 // Intensity weight (1 per report)
+            getWeight(report.status)
         ]);
 
         // 2. Create the Heatmap Layer
